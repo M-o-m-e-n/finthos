@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: finthos
+  docker:
+    compose:
+      enabled: true
+  datasource:
+    url: ${FINTHOS_DATASOURCE_URL:jdbc:postgresql://localhost:5432/finthos}
+    username: ${FINTHOS_DATASOURCE_USERNAME:finthos}
+    password: ${FINTHOS_DATASOURCE_PASSWORD:finthos}
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    validate-on-migrate: false
