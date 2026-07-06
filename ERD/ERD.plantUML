@@ -1,0 +1,83 @@
+@startuml
+hide circle
+hide methods
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+
+entity "users" as users {
+    * id : BIGSERIAL <<PK>>
+    --
+    full_name : VARCHAR(150)
+    email : VARCHAR(150) <<UNIQUE>>
+    phone_number : VARCHAR(20) <<UNIQUE>>
+    national_id : VARCHAR(20) <<UNIQUE>>
+    kyc_status : VARCHAR(20)
+    password_hash : VARCHAR(255)
+    status : VARCHAR(20)
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+}
+
+entity "accounts" as accounts {
+    * id : BIGSERIAL <<PK>>
+    --
+    user_id : BIGINT <<FK>>
+    account_number : VARCHAR(30) <<UNIQUE>>
+    account_type : VARCHAR(20)
+    currency : VARCHAR(3)
+    balance : NUMERIC(18,2)
+    status : VARCHAR(20)
+    created_at : TIMESTAMP
+}
+
+entity "transactions" as transactions {
+    * id : BIGSERIAL <<PK>>
+    --
+    reference_code : VARCHAR(40) <<UNIQUE>>
+    source_account_id : BIGINT <<FK>>
+    destination_account_id : BIGINT <<FK>>
+    amount : NUMERIC(18,2)
+    transaction_type : VARCHAR(20)
+    status : VARCHAR(20)
+    description : VARCHAR(255)
+    created_at : TIMESTAMP
+}
+
+entity "cards" as cards {
+    * id : BIGSERIAL <<PK>>
+    --
+    account_id : BIGINT <<FK>>
+    card_number : VARCHAR(20) <<UNIQUE>>
+    card_type : VARCHAR(20)
+    expiry_date : DATE
+    cvv_hash : VARCHAR(255)
+    status : VARCHAR(20)
+    created_at : TIMESTAMP
+}
+
+entity "audit_logs" as audit_logs {
+    * id : BIGSERIAL <<PK>>
+    --
+    user_id : BIGINT <<FK>>
+    action : VARCHAR(100)
+    entity_type : VARCHAR(50)
+    entity_id : BIGINT
+    details : JSONB
+    created_at : TIMESTAMP
+}
+
+'=====================
+' Relationships
+'=====================
+
+users ||--o{ accounts : owns
+
+accounts ||--o{ cards : has
+
+users ||--o{ audit_logs : creates
+
+accounts ||--o{ transactions : source
+
+accounts ||--o{ transactions : destination
+
+@enduml
