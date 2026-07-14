@@ -1,5 +1,6 @@
 package com.alahly.momkn.finthos.common.error;
 
+import com.alahly.momkn.finthos.wallet.domain.InsufficientFundsException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -22,6 +23,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleAuthFailure(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new ApiError(HttpStatus.UNAUTHORIZED.value(), "UNAUTHORIZED", "Invalid email or password"));
+    }
+
+    @ExceptionHandler(InsufficientFundsException.class)
+    public ResponseEntity<ApiError> handleInsufficientFunds(InsufficientFundsException ex) {
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(new ApiError(HttpStatus.UNPROCESSABLE_ENTITY.value(), "INSUFFICIENT_FUNDS", ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
