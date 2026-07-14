@@ -1,8 +1,13 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:finthos;MODE=PostgreSQL;DATABASE_TO_UPPER=false;DB_CLOSE_DELAY=-1
+    url: jdbc:h2:mem:finthos;MODE=PostgreSQL;DATABASE_TO_UPPER=false;CASE_INSENSITIVE_IDENTIFIERS=TRUE;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
     username: sa
     password:
   flyway:
-    locations: classpath:db/test-migration
+    locations: classpath:db/migration
+
+finthos:
+  jwt:
+    secret: "dev-only-secret-key-change-me-in-production-0123456789abcdef"
+    expiration-ms: 3600000

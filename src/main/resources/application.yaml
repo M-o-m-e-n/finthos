@@ -12,3 +12,12 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  data:
+    jdbc:
+      repositories:
+        enabled: true
+
+finthos:
+  jwt:
+    secret: "dev-only-secret-key-change-me-in-production-0123456789abcdef"
+    expiration-ms: 3600000
