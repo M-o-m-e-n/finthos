@@ -1,5 +1,7 @@
 package com.alahly.momkn.finthos.wallet.service;
 
+import com.alahly.momkn.finthos.transaction.domain.LedgerEntry;
+import com.alahly.momkn.finthos.transaction.repository.LedgerRepository;
 import com.alahly.momkn.finthos.wallet.domain.Wallet;
 import com.alahly.momkn.finthos.wallet.repository.WalletRepository;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +15,7 @@ import java.util.UUID;
 public class WalletService {
 
     private final WalletRepository walletRepository;
+    private final LedgerRepository ledgerRepository;
 
     public Wallet getByUserId(UUID userId) {
         return walletRepository.findByUserId(userId)
@@ -24,18 +27,22 @@ public class WalletService {
         return walletRepository.save(wallet);
     }
 
-    public Wallet credit(UUID walletId, BigDecimal amount) {
+    public Wallet credit(UUID walletId, BigDecimal amount, UUID transactionId) {
         Wallet wallet = walletRepository.findById(walletId)
                 .orElseThrow(() -> new IllegalArgumentException("Wallet not found: " + walletId));
         wallet.credit(amount);
-        return walletRepository.save(wallet);
+        Wallet saved = walletRepository.save(wallet);
+        ledgerRepository.save(LedgerEntry.create(walletId, transactionId, amount, saved.getBalance()));
+        return saved;
     }
 
-    public Wallet debit(UUID walletId, BigDecimal amount) {
+    public Wallet debit(UUID walletId, BigDecimal amount, UUID transactionId) {
         Wallet wallet = walletRepository.findById(walletId)
                 .orElseThrow(() -> new IllegalArgumentException("Wallet not found: " + walletId));
         wallet.debit(amount);
-        return walletRepository.save(wallet);
+        Wallet saved = walletRepository.save(wallet);
+        ledgerRepository.save(LedgerEntry.create(walletId, transactionId, amount.negate(), saved.getBalance()));
+        return saved;
     }
 
     public BigDecimal getBalance(UUID walletId) {

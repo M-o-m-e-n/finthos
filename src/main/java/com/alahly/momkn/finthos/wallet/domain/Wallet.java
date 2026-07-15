@@ -2,9 +2,10 @@ package com.alahly.momkn.finthos.wallet.domain;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Getter;
+import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
 import org.springframework.data.annotation.Version;
 import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Column;
@@ -14,9 +15,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
-@Getter
+@Data
 @NoArgsConstructor
-@AllArgsConstructor
+@AllArgsConstructor(access = lombok.AccessLevel.PRIVATE)
 @Builder
 @Table("wallets")
 public class Wallet implements Persistable<UUID> {
@@ -40,9 +41,12 @@ public class Wallet implements Persistable<UUID> {
     @Column("updated_at")
     private Instant updatedAt;
 
+    @Transient
+    private boolean newEntity;
+
     @Override
     public boolean isNew() {
-        return true;
+        return newEntity;
     }
 
     public void credit(BigDecimal amount) {
@@ -68,6 +72,7 @@ public class Wallet implements Persistable<UUID> {
                 .version(0L)
                 .createdAt(now)
                 .updatedAt(now)
+                .newEntity(true)
                 .build();
     }
 }
