@@ -1,10 +1,11 @@
 package com.alahly.momkn.finthos.user.domain;
 
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
 import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
@@ -13,9 +14,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Getter
+@Setter
 @NoArgsConstructor
-@AllArgsConstructor
-@Builder
 @Table("users")
 public class User implements Persistable<UUID> {
 
@@ -32,9 +32,26 @@ public class User implements Persistable<UUID> {
     @Column("updated_at")
     private Instant updatedAt;
 
+    @Transient
+    private boolean newEntity;
+
     @Override
     public boolean isNew() {
-        return true;
+        return newEntity;
+    }
+
+    @Builder
+    private User(UUID id, String username, String email, String passwordHash,
+                 Role role, boolean enabled, Instant createdAt, Instant updatedAt) {
+        this.id = id;
+        this.username = username;
+        this.email = email;
+        this.passwordHash = passwordHash;
+        this.role = role;
+        this.enabled = enabled;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+        this.newEntity = true;
     }
 
     public static User create(String username, String email, String passwordHash, Role role) {
