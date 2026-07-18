@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -17,9 +18,15 @@ public class TransferService {
 
     private final TransactionService transactionService;
     private final WalletService walletService;
+    private final IdempotencyService idempotencyService;
 
     @Transactional
     public Transaction transfer(UUID fromUserId, UUID toUserId, BigDecimal amount, String idempotencyKey) {
+        Optional<Transaction> existing = idempotencyService.findExisting(idempotencyKey);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
         if (fromUserId.equals(toUserId)) {
             throw new IllegalArgumentException("Cannot transfer to yourself");
         }
