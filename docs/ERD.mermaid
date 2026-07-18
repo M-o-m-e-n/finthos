@@ -12,6 +12,7 @@ erDiagram
 
     users {
         uuid id PK
+        varchar username UK "unique, not null (FR-1)"
         varchar email UK "unique, not null (FR-1)"
         varchar password_hash "BCrypt hash, never plaintext (NFR-4)"
         varchar role "enum: USER | MERCHANT | ADMIN"

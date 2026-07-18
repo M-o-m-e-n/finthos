@@ -51,7 +51,7 @@ class WalletApiTest {
     }
 
     @Test
-    void unauthenticated_returns401() throws Exception {
+    void unauthenticated_returns403() throws Exception {
         mockMvc.perform(get("/api/wallets/me"))
                 .andExpect(status().isForbidden());
     }
