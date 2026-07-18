@@ -21,3 +21,8 @@ finthos:
   jwt:
     secret: "dev-only-secret-key-change-me-in-production-0123456789abcdef"
     expiration-ms: 3600000
+
+processor:
+  base-url: http://localhost:8072
+  timeout-ms: 2000
+  retry-count: 1

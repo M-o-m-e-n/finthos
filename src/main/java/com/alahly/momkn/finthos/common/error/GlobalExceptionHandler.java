@@ -1,6 +1,7 @@
 package com.alahly.momkn.finthos.common.error;
 
 import com.alahly.momkn.finthos.wallet.domain.InsufficientFundsException;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -12,6 +13,22 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ProcessorDeclinedException.class)
+    public ResponseEntity<ApiError> handleProcessorDeclined(ProcessorDeclinedException ex,
+                                                           HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED)
+                .body(new ApiError(HttpStatus.PAYMENT_REQUIRED.value(), "PROCESSOR_DECLINED",
+                        ex.getMessage(), correlationId(request)));
+    }
+
+    @ExceptionHandler(ProcessorTimeoutException.class)
+    public ResponseEntity<ApiError> handleProcessorTimeout(ProcessorTimeoutException ex,
+                                                           HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)
+                .body(new ApiError(HttpStatus.GATEWAY_TIMEOUT.value(), "PROCESSOR_TIMEOUT",
+                        ex.getMessage(), correlationId(request)));
+    }
 
     @ExceptionHandler(EmailAlreadyExistsException.class)
     public ResponseEntity<ApiError> handleDuplicateEmail(EmailAlreadyExistsException ex) {
