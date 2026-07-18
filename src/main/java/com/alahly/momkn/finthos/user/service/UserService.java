@@ -1,6 +1,7 @@
 package com.alahly.momkn.finthos.user.service;
 
 import com.alahly.momkn.finthos.common.error.EmailAlreadyExistsException;
+import com.alahly.momkn.finthos.common.error.UsernameAlreadyExistsException;
 import com.alahly.momkn.finthos.user.domain.Role;
 import com.alahly.momkn.finthos.user.domain.User;
 import com.alahly.momkn.finthos.user.mapper.UserMapper;
@@ -26,6 +27,9 @@ public class UserService {
     public UserResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new EmailAlreadyExistsException(request.getEmail());
+        }
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw new UsernameAlreadyExistsException(request.getUsername());
         }
         String passwordHash = passwordEncoder.encode(request.getPassword());
         User user = User.create(request.getUsername(), request.getEmail(), passwordHash, Role.USER);

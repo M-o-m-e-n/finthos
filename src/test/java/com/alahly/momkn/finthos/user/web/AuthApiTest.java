@@ -51,6 +51,22 @@ class AuthApiTest {
     }
 
     @Test
+    void register_duplicateUsername_returns409() throws Exception {
+        RegisterRequest first = new RegisterRequest("dup-username-user", "dup-username-a@example.com", "password123");
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(first)))
+                .andExpect(status().isCreated());
+
+        RegisterRequest second = new RegisterRequest("dup-username-user", "dup-username-b@example.com", "password123");
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(second)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("USERNAME_ALREADY_EXISTS"));
+    }
+
+    @Test
     void login_valid_returns200AndToken() throws Exception {
         RegisterRequest register = new RegisterRequest("login-ok-user", "login-ok@example.com", "password123");
         mockMvc.perform(post("/api/auth/register")

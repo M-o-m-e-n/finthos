@@ -31,7 +31,16 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(EmailAlreadyExistsException.class)
-    public ResponseEntity<ApiError> handleDuplicateEmail(EmailAlreadyExistsException ex) {
+    public ResponseEntity<ApiError> handleDuplicateEmail(EmailAlreadyExistsException ex,
+                                                         HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ApiError(HttpStatus.CONFLICT.value(), "EMAIL_ALREADY_EXISTS",
+                        ex.getMessage(), correlationId(request)));
+    }
+
+    @ExceptionHandler(UsernameAlreadyExistsException.class)
+    public ResponseEntity<ApiError> handleDuplicateUsername(UsernameAlreadyExistsException ex,
+                                                           HttpServletRequest request) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new ApiError(HttpStatus.CONFLICT.value(), "EMAIL_ALREADY_EXISTS", ex.getMessage()));
     }
