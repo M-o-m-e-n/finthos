@@ -38,4 +38,9 @@ public class TransactionService {
         return transactionRepository.findById(txId)
                 .orElseThrow(() -> new IllegalArgumentException("Transaction not found: " + txId));
     }
+
+    public void markPersisted(Transaction tx) {
+        tx.markPersisted();
+        transactionRepository.save(tx);
+    }
 }

@@ -9,7 +9,7 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
-public class    IdempotencyService {
+public class IdempotencyService {
 
     private final TransactionRepository transactionRepository;
 
