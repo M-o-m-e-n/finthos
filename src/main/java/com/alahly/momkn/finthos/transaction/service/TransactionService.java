@@ -1,7 +1,6 @@
 package com.alahly.momkn.finthos.transaction.service;
 
 import com.alahly.momkn.finthos.transaction.domain.Transaction;
-import com.alahly.momkn.finthos.transaction.domain.TxStatus;
 import com.alahly.momkn.finthos.transaction.domain.TxType;
 import com.alahly.momkn.finthos.transaction.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;

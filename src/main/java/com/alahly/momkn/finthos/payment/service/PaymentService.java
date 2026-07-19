@@ -4,7 +4,6 @@ import com.alahly.momkn.finthos.integration.client.ProcessorClient;
 import com.alahly.momkn.finthos.integration.client.ProcessorRequest;
 import com.alahly.momkn.finthos.integration.client.ProcessorResponse;
 import com.alahly.momkn.finthos.transaction.domain.Transaction;
-import com.alahly.momkn.finthos.transaction.domain.TxStatus;
 import com.alahly.momkn.finthos.transaction.domain.TxType;
 import com.alahly.momkn.finthos.transaction.service.IdempotencyService;
 import com.alahly.momkn.finthos.transaction.service.TransactionService;

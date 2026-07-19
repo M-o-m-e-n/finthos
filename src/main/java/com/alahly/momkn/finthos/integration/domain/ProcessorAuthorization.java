@@ -6,7 +6,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
-import org.springframework.data.annotation.Version;
 import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Table;
 
@@ -34,9 +33,6 @@ public class ProcessorAuthorization implements Persistable<UUID> {
     private Instant requestedAt;
     private Instant respondedAt;
 
-    @Version
-    private Long version;
-
     @Transient
     private boolean newEntity;
 
@@ -54,6 +50,7 @@ public class ProcessorAuthorization implements Persistable<UUID> {
                 .reference(reference)
                 .amount(amount)
                 .currency(currency)
+                .status("PENDING")
                 .attemptNumber(attemptNumber)
                 .timeoutMs(timeoutMs)
                 .requestedAt(Instant.now())
