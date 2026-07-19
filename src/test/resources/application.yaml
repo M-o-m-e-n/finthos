@@ -12,6 +12,11 @@ finthos:
     secret: "dev-only-secret-key-change-me-in-production-0123456789abcdef"
     expiration-ms: 3600000
 
+logbook:
+  http:
+    sender:
+      mode: test
+
 processor:
   base-url: http://localhost:9090
   timeout-ms: 2000

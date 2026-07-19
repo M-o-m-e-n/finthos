@@ -22,6 +22,14 @@ finthos:
     secret: "dev-only-secret-key-change-me-in-production-0123456789abcdef"
     expiration-ms: 3600000
 
+logging:
+  level:
+    org.zalando.logbook: TRACE
+
+logbook:
+  format:
+    style: json
+
 processor:
   base-url: http://localhost:8072
   timeout-ms: 2000
