@@ -1,4 +1,4 @@
-package com.alahly.momkn.finthos.wallet.service;
+package com.alahly.momkn.finthos.user.service;
 
 import com.alahly.momkn.finthos.common.error.EmailAlreadyExistsException;
 import com.alahly.momkn.finthos.user.domain.Role;
@@ -8,6 +8,7 @@ import com.alahly.momkn.finthos.user.repository.UserRepository;
 import com.alahly.momkn.finthos.user.web.dto.RegisterRequest;
 import com.alahly.momkn.finthos.user.web.dto.UserResponse;
 import com.alahly.momkn.finthos.wallet.domain.Wallet;
+import com.alahly.momkn.finthos.wallet.service.WalletService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
