@@ -148,27 +148,6 @@ CREATE TABLE processor_authorizations
             REFERENCES transactions(id)
 );
 
-CREATE TABLE auth_audit_log
-(
-    id                  UUID PRIMARY KEY,
-
-    user_id             UUID,
-
-    email_attempted     VARCHAR(255) NOT NULL,
-
-    outcome             VARCHAR(20) NOT NULL
-        CHECK (outcome IN ('SUCCESS', 'BAD_PASSWORD', 'NOT_FOUND', 'DISABLED')),
-
-    correlation_id      VARCHAR(255),
-
-    ip_address          VARCHAR(45),
-
-    attempted_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT fk_auth_user
-        FOREIGN KEY (user_id)
-            REFERENCES users(id)
-);
 
 
 CREATE INDEX idx_users_email
@@ -204,11 +183,3 @@ CREATE INDEX idx_ledger_transaction
 CREATE INDEX idx_processor_transaction
     ON processor_authorizations(transaction_id);
 
-CREATE INDEX idx_auth_user
-    ON auth_audit_log(user_id);
-
-CREATE INDEX idx_auth_email
-    ON auth_audit_log(email_attempted);
-
-CREATE INDEX idx_auth_attempted_at
-    ON auth_audit_log(attempted_at);
