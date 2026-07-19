@@ -121,7 +121,22 @@ public class TransactionController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable UUID id) {
 
+        User user = userRepository.findByEmail(userDetails.getUsername())
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        Wallet wallet = walletRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new IllegalArgumentException("Wallet not found"));
+
         Transaction tx = transactionService.findById(id);
+
+        boolean isAdmin = user.getRole() == com.alahly.momkn.finthos.user.domain.Role.ADMIN;
+        boolean isRelated = wallet.getId().equals(tx.getSourceWalletId())
+                || wallet.getId().equals(tx.getTargetWalletId());
+
+        if (!isAdmin && !isRelated) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Transaction does not belong to this user");
+        }
 
         TransactionItem response = TransactionItem.builder()
                 .id(tx.getId())

@@ -71,6 +71,15 @@ public class GlobalExceptionHandler {
                         ex.getMessage(), correlationId(request)));
     }
 
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ApiError> handleAccessDenied(
+            org.springframework.security.access.AccessDeniedException ex,
+            HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ApiError(HttpStatus.FORBIDDEN.value(), "FORBIDDEN",
+                        "You do not have access to this resource", correlationId(request)));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiError> handleIllegalArgument(IllegalArgumentException ex,
                                                           HttpServletRequest request) {
