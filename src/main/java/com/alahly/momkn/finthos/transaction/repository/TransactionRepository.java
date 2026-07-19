@@ -4,6 +4,7 @@ import com.alahly.momkn.finthos.transaction.domain.Transaction;
 import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.PagingAndSortingRepository;
+import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
@@ -16,18 +17,25 @@ public interface TransactionRepository extends CrudRepository<Transaction, UUID>
 
     @Query("SELECT * FROM transactions " +
            "WHERE (source_wallet_id = :walletId OR target_wallet_id = :walletId) " +
-           "AND (:type IS NULL OR type = :type) " +
-           "AND (:fromDate IS NULL OR created_at >= :fromDate) " +
-           "AND (:toDate IS NULL OR created_at <= :toDate) " +
+           "AND type = COALESCE(:type, type) " +
+           "AND created_at >= COALESCE(:fromDate, created_at) " +
+           "AND created_at <= COALESCE(:toDate, created_at) " +
            "ORDER BY created_at DESC " +
            "LIMIT :limit OFFSET :offset")
-    List<Transaction> findByWalletAndFilters(UUID walletId, String type, Instant fromDate, Instant toDate,
-                                             int limit, int offset);
+    List<Transaction> findByWalletAndFilters(@Param("walletId") UUID walletId,
+                                             @Param("type") String type,
+                                             @Param("fromDate") Instant fromDate,
+                                             @Param("toDate") Instant toDate,
+                                             @Param("limit") int limit,
+                                             @Param("offset") int offset);
 
     @Query("SELECT COUNT(*) FROM transactions " +
            "WHERE (source_wallet_id = :walletId OR target_wallet_id = :walletId) " +
-           "AND (:type IS NULL OR type = :type) " +
-           "AND (:fromDate IS NULL OR created_at >= :fromDate) " +
-           "AND (:toDate IS NULL OR created_at <= :toDate)")
-    long countByWalletAndFilters(UUID walletId, String type, Instant fromDate, Instant toDate);
+           "AND type = COALESCE(:type, type) " +
+           "AND created_at >= COALESCE(:fromDate, created_at) " +
+           "AND created_at <= COALESCE(:toDate, created_at)")
+    long countByWalletAndFilters(@Param("walletId") UUID walletId,
+                                  @Param("type") String type,
+                                  @Param("fromDate") Instant fromDate,
+                                  @Param("toDate") Instant toDate);
 }
