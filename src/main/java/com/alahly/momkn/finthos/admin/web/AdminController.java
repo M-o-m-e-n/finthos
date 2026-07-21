@@ -2,6 +2,7 @@ package com.alahly.momkn.finthos.admin.web;
 
 import com.alahly.momkn.finthos.admin.service.AdminService;
 import com.alahly.momkn.finthos.admin.web.dto.AdminUserPage;
+import com.alahly.momkn.finthos.admin.web.dto.AdminUserResponse;
 import com.alahly.momkn.finthos.transaction.domain.Transaction;
 import com.alahly.momkn.finthos.transaction.web.dto.TxResponse;
 import com.alahly.momkn.finthos.user.domain.User;
@@ -10,7 +11,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -55,5 +58,17 @@ public class AdminController {
                 .build();
 
         return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/users/{id}/disable")
+    public ResponseEntity<AdminUserResponse> toggleUserEnabled(@PathVariable UUID id) {
+        AdminUserResponse updated = adminService.toggleUserEnabled(id);
+        return ResponseEntity.ok(updated);
+    }
+
+    @DeleteMapping("/users/{id}")
+    public ResponseEntity<Void> deleteUser(@PathVariable UUID id) {
+        adminService.deleteUser(id);
+        return ResponseEntity.noContent().build();
     }
 }

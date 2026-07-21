@@ -2,6 +2,7 @@ package com.alahly.momkn.finthos.admin.service;
 
 import com.alahly.momkn.finthos.admin.web.dto.AdminUserPage;
 import com.alahly.momkn.finthos.admin.web.dto.AdminUserResponse;
+import com.alahly.momkn.finthos.common.error.EntityNotFoundException;
 import com.alahly.momkn.finthos.transaction.domain.Transaction;
 import com.alahly.momkn.finthos.transaction.domain.TxStatus;
 import com.alahly.momkn.finthos.transaction.domain.TxType;
@@ -15,6 +16,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -67,6 +69,24 @@ public class AdminService {
         transactionService.markSuccess(original);
 
         return reversal;
+    }
+
+    @Transactional
+    public AdminUserResponse toggleUserEnabled(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("User not found: " + userId));
+        user.setEnabled(!user.isEnabled());
+        user.setUpdatedAt(Instant.now());
+        userRepository.save(user);
+        return toAdminUser(user);
+    }
+
+    @Transactional
+    public void deleteUser(UUID userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new EntityNotFoundException("User not found: " + userId);
+        }
+        userRepository.deleteById(userId);
     }
 
     private AdminUserResponse toAdminUser(User user) {
