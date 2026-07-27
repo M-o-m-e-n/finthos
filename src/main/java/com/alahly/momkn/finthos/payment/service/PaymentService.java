@@ -39,7 +39,7 @@ public class PaymentService {
 
         try {
             ProcessorRequest req = new ProcessorRequest(tx.getId().toString(), amount, wallet.getCurrency());
-            processorClient.authorizeWithRetry(tx.getId(), req);
+            processorClient.authorizeWithCircuitBreaker(tx.getId(), req);
 
             walletService.credit(wallet.getId(), amount, tx.getId());
             transactionService.markSuccess(tx);
@@ -67,7 +67,7 @@ public class PaymentService {
 
         try {
             ProcessorRequest req = new ProcessorRequest(tx.getId().toString(), amount, senderWallet.getCurrency());
-            processorClient.authorizeWithRetry(tx.getId(), req);
+            processorClient.authorizeWithCircuitBreaker(tx.getId(), req);
 
             walletService.debit(senderWallet.getId(), amount, tx.getId());
             walletService.credit(merchantWallet.getId(), amount, tx.getId());

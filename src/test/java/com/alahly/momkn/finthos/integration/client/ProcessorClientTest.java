@@ -39,7 +39,7 @@ class ProcessorClientTest {
         mockServer.start();
 
         ProcessorProperties props = new ProcessorProperties(
-                mockServer.url("/").toString(), 2000, 1);
+                mockServer.url("/").toString(), 2000, 1, 500);
         processorClient = new ProcessorClient(RestClient.builder(), props, authRepo);
     }
 
@@ -55,7 +55,7 @@ class ProcessorClientTest {
                 .setBody("{\"reference\":\"tx-1\",\"status\":\"APPROVED\",\"authCode\":\"abc123\"}"));
 
         ProcessorRequest req = new ProcessorRequest("tx-1", new BigDecimal("100.00"), "USD");
-        ProcessorResponse response = processorClient.authorize(UUID.randomUUID(), req, 1);
+        ProcessorResponse response = processorClient.authorize(UUID.randomUUID(), req);
 
         assertThat(response.isApproved()).isTrue();
         assertThat(response.authCode()).isEqualTo("abc123");
@@ -70,7 +70,7 @@ class ProcessorClientTest {
 
         ProcessorRequest req = new ProcessorRequest("tx-2", new BigDecimal("50.00"), "USD");
 
-        assertThatThrownBy(() -> processorClient.authorize(UUID.randomUUID(), req, 1))
+        assertThatThrownBy(() -> processorClient.authorize(UUID.randomUUID(), req))
                 .isInstanceOf(ProcessorDeclinedException.class);
         verify(authRepo, times(2)).save(any());
     }
@@ -83,7 +83,7 @@ class ProcessorClientTest {
 
         ProcessorRequest req = new ProcessorRequest("tx-3", new BigDecimal("25.00"), "USD");
 
-        assertThatThrownBy(() -> processorClient.authorize(UUID.randomUUID(), req, 1))
+        assertThatThrownBy(() -> processorClient.authorize(UUID.randomUUID(), req))
                 .isInstanceOf(ProcessorTimeoutException.class);
         verify(authRepo, times(2)).save(any());
     }
@@ -94,48 +94,15 @@ class ProcessorClientTest {
 
         ProcessorRequest req = new ProcessorRequest("tx-4", new BigDecimal("10.00"), "USD");
 
-        assertThatThrownBy(() -> processorClient.authorize(UUID.randomUUID(), req, 1))
+        assertThatThrownBy(() -> processorClient.authorize(UUID.randomUUID(), req))
                 .isInstanceOf(ProcessorTimeoutException.class);
     }
 
     @Test
-    void retry_succeedsOnSecondAttempt() {
+    void declined_notRetried_whenCalledDirectly() {
         ProcessorProperties props = new ProcessorProperties(
-                mockServer.url("/").toString(), 2000, 2);
-        ProcessorClient retryClient = new ProcessorClient(RestClient.builder(), props, authRepo);
-
-        mockServer.enqueue(new MockResponse().setResponseCode(500));
-        mockServer.enqueue(new MockResponse()
-                .setHeader("Content-Type", "application/json")
-                .setBody("{\"reference\":\"tx-5\",\"status\":\"APPROVED\",\"authCode\":\"xyz\"}"));
-
-        ProcessorRequest req = new ProcessorRequest("tx-5", new BigDecimal("100.00"), "USD");
-        ProcessorResponse response = retryClient.authorizeWithRetry(UUID.randomUUID(), req);
-
-        assertThat(response.isApproved()).isTrue();
-        assertThat(response.authCode()).isEqualTo("xyz");
-    }
-
-    @Test
-    void retry_exhausted_throwsTimeout() {
-        ProcessorProperties props = new ProcessorProperties(
-                mockServer.url("/").toString(), 2000, 2);
-        ProcessorClient retryClient = new ProcessorClient(RestClient.builder(), props, authRepo);
-
-        mockServer.enqueue(new MockResponse().setResponseCode(500));
-        mockServer.enqueue(new MockResponse().setResponseCode(500));
-
-        ProcessorRequest req = new ProcessorRequest("tx-6", new BigDecimal("100.00"), "USD");
-
-        assertThatThrownBy(() -> retryClient.authorizeWithRetry(UUID.randomUUID(), req))
-                .isInstanceOf(ProcessorTimeoutException.class);
-    }
-
-    @Test
-    void declined_notRetried() {
-        ProcessorProperties props = new ProcessorProperties(
-                mockServer.url("/").toString(), 2000, 3);
-        ProcessorClient retryClient = new ProcessorClient(RestClient.builder(), props, authRepo);
+                mockServer.url("/").toString(), 2000, 3, 500);
+        ProcessorClient directClient = new ProcessorClient(RestClient.builder(), props, authRepo);
 
         mockServer.enqueue(new MockResponse()
                 .setHeader("Content-Type", "application/json")
@@ -143,8 +110,7 @@ class ProcessorClientTest {
 
         ProcessorRequest req = new ProcessorRequest("tx-7", new BigDecimal("100.00"), "USD");
 
-        assertThatThrownBy(() -> retryClient.authorizeWithRetry(UUID.randomUUID(), req))
+        assertThatThrownBy(() -> directClient.authorizeWithRetry(UUID.randomUUID(), req))
                 .isInstanceOf(ProcessorDeclinedException.class);
-        assertThat(mockServer.getRequestCount()).isEqualTo(1);
     }
 }

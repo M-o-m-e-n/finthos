@@ -31,6 +31,14 @@ public class GlobalExceptionHandler {
                         ex.getMessage(), correlationId(request)));
     }
 
+    @ExceptionHandler(ProcessorUnavailableException.class)
+    public ResponseEntity<ApiError> handleProcessorUnavailable(ProcessorUnavailableException ex,
+                                                               HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(new ApiError(HttpStatus.SERVICE_UNAVAILABLE.value(), "PROCESSOR_UNAVAILABLE",
+                        ex.getMessage(), correlationId(request)));
+    }
+
     @ExceptionHandler(EmailAlreadyExistsException.class)
     public ResponseEntity<ApiError> handleDuplicateEmail(EmailAlreadyExistsException ex,
                                                          HttpServletRequest request) {

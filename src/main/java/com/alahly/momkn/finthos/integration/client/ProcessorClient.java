@@ -2,12 +2,19 @@ package com.alahly.momkn.finthos.integration.client;
 
 import com.alahly.momkn.finthos.common.error.ProcessorDeclinedException;
 import com.alahly.momkn.finthos.common.error.ProcessorTimeoutException;
+import com.alahly.momkn.finthos.common.error.ProcessorUnavailableException;
 import com.alahly.momkn.finthos.integration.config.ProcessorProperties;
 import com.alahly.momkn.finthos.integration.domain.ProcessorAuthorization;
 import com.alahly.momkn.finthos.integration.repository.ProcessorAuthorizationRepository;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Recover;
+import org.springframework.retry.annotation.Retryable;
+import org.springframework.retry.support.RetrySynchronizationManager;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
@@ -39,7 +46,8 @@ public class ProcessorClient {
                 .build();
     }
 
-    public ProcessorResponse authorize(UUID transactionId, ProcessorRequest req, int attemptNumber) {
+    public ProcessorResponse authorize(UUID transactionId, ProcessorRequest req) {
+        int attemptNumber = currentAttempt();
         ProcessorAuthorization auth = ProcessorAuthorization.create(
                 transactionId, req.reference(), req.amount(), req.currency(),
                 attemptNumber, props.timeoutMs());
@@ -95,19 +103,43 @@ public class ProcessorClient {
         }
     }
 
+    @Retryable(
+            retryFor = ProcessorTimeoutException.class,
+            maxAttemptsExpression = "#{${processor.retry-count}}",
+            backoff = @Backoff(delayExpression = "#{${processor.retry-delay-ms:1000}}")
+    )
     public ProcessorResponse authorizeWithRetry(UUID transactionId, ProcessorRequest req) {
-        int maxAttempts = Math.max(props.retryCount(), 1);
-        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-            try {
-                return authorize(transactionId, req, attempt);
-            } catch (ProcessorTimeoutException e) {
-                if (attempt == maxAttempts) {
-                    throw e;
-                }
-                log.info("Retry {} of {} for transaction {}", attempt, maxAttempts, req.reference());
-            }
+        return authorize(transactionId, req);
+    }
+
+    @CircuitBreaker(name = "processor", fallbackMethod = "circuitBreakerFallback")
+    public ProcessorResponse authorizeWithCircuitBreaker(UUID transactionId, ProcessorRequest req) {
+        return authorizeWithRetry(transactionId, req);
+    }
+
+    @Recover
+    public ProcessorResponse recoverTimeout(ProcessorTimeoutException e, UUID transactionId, ProcessorRequest req) {
+        throw e;
+    }
+
+    @Recover
+    public ProcessorResponse recoverAny(RuntimeException e, UUID transactionId, ProcessorRequest req) {
+        throw e;
+    }
+
+    public ProcessorResponse circuitBreakerFallback(UUID transactionId, ProcessorRequest req, Throwable t) {
+        if (t instanceof ProcessorTimeoutException || t instanceof ProcessorDeclinedException) {
+            throw (RuntimeException) t;
         }
-        throw new ProcessorTimeoutException(req.reference());
+        if (t instanceof CallNotPermittedException) {
+            log.warn("Circuit breaker open for processor, failing fast for {}", req.reference());
+        }
+        throw new ProcessorUnavailableException(req.reference(), t);
+    }
+
+    private int currentAttempt() {
+        var context = RetrySynchronizationManager.getContext();
+        return context != null ? context.getRetryCount() + 1 : 1;
     }
 
     private void markPersisted(ProcessorAuthorization auth) {

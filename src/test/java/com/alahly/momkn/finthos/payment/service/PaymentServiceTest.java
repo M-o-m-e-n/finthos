@@ -68,7 +68,7 @@ class PaymentServiceTest {
         when(transactionService.create(eq(TxType.TOP_UP), eq(new BigDecimal("50.00")),
                 eq("idem-1"), eq(null), eq(userWallet.getId())))
                 .thenReturn(pendingTx);
-        when(processorClient.authorizeWithRetry(eq(pendingTx.getId()), any(ProcessorRequest.class)))
+        when(processorClient.authorizeWithCircuitBreaker(eq(pendingTx.getId()), any(ProcessorRequest.class)))
                 .thenReturn(new ProcessorResponse(pendingTx.getId().toString(), "APPROVED", "AUTH-123"));
 
         Transaction result = paymentService.topUp(userId, new BigDecimal("50.00"), "idem-1");
@@ -84,7 +84,7 @@ class PaymentServiceTest {
         when(transactionService.create(eq(TxType.TOP_UP), eq(new BigDecimal("50.00")),
                 eq("idem-1"), eq(null), eq(userWallet.getId())))
                 .thenReturn(pendingTx);
-        when(processorClient.authorizeWithRetry(eq(pendingTx.getId()), any(ProcessorRequest.class)))
+        when(processorClient.authorizeWithCircuitBreaker(eq(pendingTx.getId()), any(ProcessorRequest.class)))
                 .thenThrow(new com.alahly.momkn.finthos.common.error.ProcessorDeclinedException(pendingTx.getId().toString()));
 
         assertThrows(com.alahly.momkn.finthos.common.error.ProcessorDeclinedException.class,
@@ -101,7 +101,7 @@ class PaymentServiceTest {
         when(transactionService.create(eq(TxType.TOP_UP), eq(new BigDecimal("50.00")),
                 eq("idem-1"), eq(null), eq(userWallet.getId())))
                 .thenReturn(pendingTx);
-        when(processorClient.authorizeWithRetry(eq(pendingTx.getId()), any(ProcessorRequest.class)))
+        when(processorClient.authorizeWithCircuitBreaker(eq(pendingTx.getId()), any(ProcessorRequest.class)))
                 .thenThrow(new ProcessorTimeoutException(pendingTx.getId().toString()));
 
         assertThrows(ProcessorTimeoutException.class,
@@ -133,7 +133,7 @@ class PaymentServiceTest {
         when(transactionService.create(eq(TxType.PAYMENT), eq(new BigDecimal("30.00")),
                 eq("idem-2"), eq(userWallet.getId()), eq(merchantWallet.getId())))
                 .thenReturn(pendingTx);
-        when(processorClient.authorizeWithRetry(eq(pendingTx.getId()), any(ProcessorRequest.class)))
+        when(processorClient.authorizeWithCircuitBreaker(eq(pendingTx.getId()), any(ProcessorRequest.class)))
                 .thenReturn(new ProcessorResponse(pendingTx.getId().toString(), "APPROVED", "AUTH-456"));
 
         Transaction result = paymentService.payMerchant(userId, merchantId, new BigDecimal("30.00"), "idem-2");
@@ -151,7 +151,7 @@ class PaymentServiceTest {
         when(transactionService.create(eq(TxType.PAYMENT), eq(new BigDecimal("30.00")),
                 eq("idem-2"), eq(userWallet.getId()), eq(merchantWallet.getId())))
                 .thenReturn(pendingTx);
-        when(processorClient.authorizeWithRetry(eq(pendingTx.getId()), any(ProcessorRequest.class)))
+        when(processorClient.authorizeWithCircuitBreaker(eq(pendingTx.getId()), any(ProcessorRequest.class)))
                 .thenThrow(new com.alahly.momkn.finthos.common.error.ProcessorDeclinedException(pendingTx.getId().toString()));
 
         assertThrows(com.alahly.momkn.finthos.common.error.ProcessorDeclinedException.class,
@@ -170,7 +170,7 @@ class PaymentServiceTest {
         when(transactionService.create(eq(TxType.PAYMENT), eq(new BigDecimal("30.00")),
                 eq("idem-2"), eq(userWallet.getId()), eq(merchantWallet.getId())))
                 .thenReturn(pendingTx);
-        when(processorClient.authorizeWithRetry(eq(pendingTx.getId()), any(ProcessorRequest.class)))
+        when(processorClient.authorizeWithCircuitBreaker(eq(pendingTx.getId()), any(ProcessorRequest.class)))
                 .thenThrow(new ProcessorTimeoutException(pendingTx.getId().toString()));
 
         assertThrows(ProcessorTimeoutException.class,

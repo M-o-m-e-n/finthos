@@ -25,6 +25,7 @@ finthos:
 logging:
   level:
     org.zalando.logbook: TRACE
+    com.alahly.momkn.finthos.common.logging: TRACE
 
 logbook:
   format:
@@ -33,4 +34,19 @@ logbook:
 processor:
   base-url: http://localhost:8072
   timeout-ms: 2000
-  retry-count: 1
+  retry-count: 3
+  retry-delay-ms: 500
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        failure-rate-threshold: 50
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        minimum-number-of-calls: 5
+    instances:
+      processor:
+        base-config: default

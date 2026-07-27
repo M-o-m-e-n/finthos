@@ -68,7 +68,7 @@ class TopUpApiTest {
 
     @Test
     void topUp_approved_creditsWallet() throws Exception {
-        when(processorClient.authorizeWithRetry(any(UUID.class), any(ProcessorRequest.class)))
+        when(processorClient.authorizeWithCircuitBreaker(any(UUID.class), any(ProcessorRequest.class)))
                 .thenReturn(new ProcessorResponse("ref", "APPROVED", "AUTH-001"));
 
         TopUpRequest req = new TopUpRequest(new BigDecimal("50.00"));
@@ -88,7 +88,7 @@ class TopUpApiTest {
 
     @Test
     void topUp_declined_returns402() throws Exception {
-        when(processorClient.authorizeWithRetry(any(UUID.class), any(ProcessorRequest.class)))
+        when(processorClient.authorizeWithCircuitBreaker(any(UUID.class), any(ProcessorRequest.class)))
                 .thenThrow(new ProcessorDeclinedException("ref"));
 
         TopUpRequest req = new TopUpRequest(new BigDecimal("50.00"));
@@ -106,7 +106,7 @@ class TopUpApiTest {
 
     @Test
     void topUp_timeout_returns504() throws Exception {
-        when(processorClient.authorizeWithRetry(any(UUID.class), any(ProcessorRequest.class)))
+        when(processorClient.authorizeWithCircuitBreaker(any(UUID.class), any(ProcessorRequest.class)))
                 .thenThrow(new ProcessorTimeoutException("ref"));
 
         TopUpRequest req = new TopUpRequest(new BigDecimal("50.00"));

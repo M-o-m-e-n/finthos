@@ -86,7 +86,7 @@ class PaymentApiTest {
 
     @Test
     void pay_approved_debitsSenderCreditsMerchant() throws Exception {
-        when(processorClient.authorizeWithRetry(any(UUID.class), any(ProcessorRequest.class)))
+        when(processorClient.authorizeWithCircuitBreaker(any(UUID.class), any(ProcessorRequest.class)))
                 .thenReturn(new ProcessorResponse("ref", "APPROVED", "AUTH-001"));
 
         PaymentRequest req = new PaymentRequest(merchantId, new BigDecimal("30.00"));
@@ -107,7 +107,7 @@ class PaymentApiTest {
 
     @Test
     void pay_declined_returns402() throws Exception {
-        when(processorClient.authorizeWithRetry(any(UUID.class), any(ProcessorRequest.class)))
+        when(processorClient.authorizeWithCircuitBreaker(any(UUID.class), any(ProcessorRequest.class)))
                 .thenThrow(new ProcessorDeclinedException("ref"));
 
         PaymentRequest req = new PaymentRequest(merchantId, new BigDecimal("30.00"));
@@ -125,7 +125,7 @@ class PaymentApiTest {
 
     @Test
     void pay_timeout_returns504() throws Exception {
-        when(processorClient.authorizeWithRetry(any(UUID.class), any(ProcessorRequest.class)))
+        when(processorClient.authorizeWithCircuitBreaker(any(UUID.class), any(ProcessorRequest.class)))
                 .thenThrow(new ProcessorTimeoutException("ref"));
 
         PaymentRequest req = new PaymentRequest(merchantId, new BigDecimal("30.00"));
