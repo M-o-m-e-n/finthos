@@ -8,6 +8,7 @@ import com.alahly.momkn.finthos.transaction.domain.Transaction;
 import com.alahly.momkn.finthos.transaction.domain.TxType;
 import com.alahly.momkn.finthos.transaction.service.IdempotencyService;
 import com.alahly.momkn.finthos.transaction.service.TransactionService;
+import com.alahly.momkn.finthos.user.service.UserService;
 import com.alahly.momkn.finthos.wallet.domain.InsufficientFundsException;
 import com.alahly.momkn.finthos.wallet.domain.Wallet;
 import com.alahly.momkn.finthos.wallet.service.WalletService;
@@ -41,6 +42,8 @@ class PaymentServiceTest {
     private WalletService walletService;
     @Mock
     private IdempotencyService idempotencyService;
+    @Mock
+    private UserService userService;
 
     private PaymentService paymentService;
 
@@ -53,7 +56,7 @@ class PaymentServiceTest {
     @BeforeEach
     void setUp() {
         paymentService = new PaymentService(transactionService, processorClient, walletService,
-                idempotencyService, TransactionOperations.withoutTransaction());
+                idempotencyService, userService, TransactionOperations.withoutTransaction());
 
         userId = UUID.randomUUID();
         merchantId = UUID.randomUUID();
@@ -158,6 +161,7 @@ class PaymentServiceTest {
 
         Transaction result = paymentService.payMerchant(userId, merchantId, new BigDecimal("30.00"), "idem-2");
 
+        verify(userService).requireMerchant(merchantId);
         verify(walletService).debit(eq(userWallet.getId()), eq(new BigDecimal("30.00")), eq(pendingTx.getId()));
         verify(walletService).credit(eq(merchantWallet.getId()), eq(new BigDecimal("30.00")), eq(pendingTx.getId()));
         verify(transactionService).markSuccess(pendingTx);
@@ -174,6 +178,14 @@ class PaymentServiceTest {
 
         verify(processorClient, never()).authorizeWithCircuitBreaker(any(), any());
         verify(transactionService, never()).create(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void payMerchant_toSelf_throws() {
+        assertThrows(IllegalArgumentException.class,
+                () -> paymentService.payMerchant(userId, userId, new BigDecimal("30.00"), "idem-2"));
+
+        verify(processorClient, never()).authorizeWithCircuitBreaker(any(), any());
     }
 
     @Test

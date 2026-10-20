@@ -54,6 +54,12 @@ public class UserService {
                 .orElseThrow(() -> new EntityNotFoundException("User not found: " + userId));
     }
 
+    public void requireMerchant(UUID userId) {
+        if (getById(userId).getRole() != Role.MERCHANT) {
+            throw new IllegalArgumentException("Recipient is not a merchant: " + userId);
+        }
+    }
+
     public Page<User> listUsers(Pageable pageable) {
         return userRepository.findAll(pageable);
     }

@@ -6,6 +6,7 @@ import com.alahly.momkn.finthos.transaction.domain.Transaction;
 import com.alahly.momkn.finthos.transaction.domain.TxType;
 import com.alahly.momkn.finthos.transaction.service.IdempotencyService;
 import com.alahly.momkn.finthos.transaction.service.TransactionService;
+import com.alahly.momkn.finthos.user.service.UserService;
 import com.alahly.momkn.finthos.wallet.domain.Wallet;
 import com.alahly.momkn.finthos.wallet.service.WalletService;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,7 @@ public class PaymentService {
     private final ProcessorClient processorClient;
     private final WalletService walletService;
     private final IdempotencyService idempotencyService;
+    private final UserService userService;
     private final TransactionOperations transactionOperations;
 
     public Transaction topUp(UUID userId, BigDecimal amount, String idempotencyKey) {
@@ -59,6 +61,10 @@ public class PaymentService {
         if (existing.isPresent()) {
             return existing.get();
         }
+        if (userId.equals(merchantId)) {
+            throw new IllegalArgumentException("Cannot pay yourself");
+        }
+        userService.requireMerchant(merchantId);
 
         Wallet senderWallet = walletService.getByUserId(userId);
         Wallet merchantWallet = walletService.getByUserId(merchantId);
