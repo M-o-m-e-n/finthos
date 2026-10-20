@@ -35,7 +35,7 @@ class AuthServiceDisabledUserTest {
     @Test
     void login_disabledUser_throwsAuthenticationFailed() {
         User disabledUser = User.create("alice", "alice@example.com", "hash", Role.USER);
-        disabledUser.setEnabled(false);
+        disabledUser.disable();
 
         when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(disabledUser));
         when(passwordEncoder.matches("password123", "hash")).thenReturn(true);

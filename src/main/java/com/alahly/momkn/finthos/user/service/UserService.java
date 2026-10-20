@@ -17,7 +17,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.UUID;
 
 @Service
@@ -67,8 +66,11 @@ public class UserService {
     @Transactional
     public User toggleEnabled(UUID userId) {
         User user = getById(userId);
-        user.setEnabled(!user.isEnabled());
-        user.setUpdatedAt(Instant.now());
+        if (user.isEnabled()) {
+            user.disable();
+        } else {
+            user.enable();
+        }
         return userRepository.save(user);
     }
 

@@ -1,9 +1,10 @@
 package com.alahly.momkn.finthos.user.domain;
 
+import lombok.AccessLevel;
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
 import org.springframework.data.domain.Persistable;
@@ -14,12 +15,13 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Getter
-@Setter
-@NoArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 @Table("users")
 public class User implements Persistable<UUID> {
 
     @Id
+    @EqualsAndHashCode.Include
     private UUID id;
     private String username;
     private String email;
@@ -52,6 +54,16 @@ public class User implements Persistable<UUID> {
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
         this.newEntity = true;
+    }
+
+    public void enable() {
+        this.enabled = true;
+        this.updatedAt = Instant.now();
+    }
+
+    public void disable() {
+        this.enabled = false;
+        this.updatedAt = Instant.now();
     }
 
     public static User create(String username, String email, String passwordHash, Role role) {
