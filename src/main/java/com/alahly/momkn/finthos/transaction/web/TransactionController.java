@@ -9,9 +9,10 @@ import com.alahly.momkn.finthos.transaction.web.dto.TransactionPage;
 import com.alahly.momkn.finthos.transaction.web.dto.TransferRequest;
 import com.alahly.momkn.finthos.transaction.web.dto.TxResponse;
 import com.alahly.momkn.finthos.user.domain.User;
+import com.alahly.momkn.finthos.user.domain.Role;
 import com.alahly.momkn.finthos.user.service.UserService;
 import com.alahly.momkn.finthos.wallet.domain.Wallet;
-import com.alahly.momkn.finthos.wallet.repository.WalletRepository;
+import com.alahly.momkn.finthos.wallet.service.WalletService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -36,7 +37,7 @@ public class TransactionController {
     private final TransferService transferService;
     private final TransactionService transactionService;
     private final UserService userService;
-    private final WalletRepository walletRepository;
+    private final WalletService walletService;
 
     @PostMapping("/transfers")
     public ResponseEntity<TxResponse> transfer(
@@ -80,8 +81,7 @@ public class TransactionController {
 
         User user = userService.getByEmail(userDetails.getUsername());
 
-        Wallet wallet = walletRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new IllegalArgumentException("Wallet not found"));
+        Wallet wallet = walletService.getByUserId(user.getId());
 
         Instant fromDate = (from != null) ? from.atStartOfDay(ZoneOffset.UTC).toInstant() : null;
         Instant toDate = (to != null) ? to.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().minusNanos(1) : null;
@@ -121,19 +121,9 @@ public class TransactionController {
 
         User user = userService.getByEmail(userDetails.getUsername());
 
-        Wallet wallet = walletRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new IllegalArgumentException("Wallet not found"));
+        Wallet wallet = walletService.getByUserId(user.getId());
 
-        Transaction tx = transactionService.findById(id);
-
-        boolean isAdmin = user.getRole() == com.alahly.momkn.finthos.user.domain.Role.ADMIN;
-        boolean isRelated = wallet.getId().equals(tx.getSourceWalletId())
-                || wallet.getId().equals(tx.getTargetWalletId());
-
-        if (!isAdmin && !isRelated) {
-            throw new org.springframework.security.access.AccessDeniedException(
-                    "Transaction does not belong to this user");
-        }
+        Transaction tx = transactionService.getVisibleTo(id, wallet.getId(), user.getRole() == Role.ADMIN);
 
         TransactionItem response = TransactionItem.builder()
                 .id(tx.getId())
