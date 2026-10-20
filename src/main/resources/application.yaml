@@ -3,7 +3,11 @@ spring:
     name: finthos
   docker:
     compose:
+      # Local runs (./mvnw spring-boot:run) start only the database, never the app container
+      # defined in docker-compose.yaml, and leave it running afterwards (the container app may use it).
       enabled: true
+      file: compose.db.yaml
+      lifecycle-management: start-only
   datasource:
     url: ${FINTHOS_DATASOURCE_URL:jdbc:postgresql://localhost:5432/finthos}
     username: ${FINTHOS_DATASOURCE_USERNAME:finthos}

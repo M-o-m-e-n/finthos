@@ -1,25 +1,5 @@
-services:
-  db:
-    image: postgres:16
-    container_name: finthos-db
-    restart: no
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_DB: finthos
-      POSTGRES_USER: finthos
-      POSTGRES_PASSWORD: finthos
-    volumes:
-      - finthos-db-data:/var/lib/postgresql/data
+# PostgreSQL + Adminer, defined in compose.db.yaml (which local runs use on their own).
+name: finthos
 
-  adminer:
-    image: adminer:latest
-    container_name: finthos-adminer
-    restart: unless-stopped
-    ports:
-      - "8888:8080"
-    depends_on:
-      - db
-
-volumes:
-  finthos-db-data:
+include:
+  - compose.db.yaml
