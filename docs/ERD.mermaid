@@ -1,13 +1,16 @@
 %%{init: {'theme': 'default'}}%%
+%% Source of truth for the schema in src/main/resources/db/migration/V1__baseline.sql.
+%% Deletion policy: only wallets -> users cascades (a user with no money history can be
+%% deleted). Every FK into/out of transactions, ledger_entries and processor_authorizations
+%% is restrictive, so money history is never deleted as a side effect.
 erDiagram
-    users ||--|| wallets : "owns (FR-2)"
-    users ||--o{ auth_audit_log : "login attempts (FR-1, NFR-4, NFR-7)"
+    users ||--|| wallets : "owns (FR-2), ON DELETE CASCADE"
     wallets ||--o{ ledger_entries : "logs (NFR-3)"
     wallets ||--o{ transactions : "source_wallet_id (debit side)"
     wallets ||--o{ transactions : "target_wallet_id (credit side)"
-    transactions ||--o{ ledger_entries : "creates (min 1, 2 for transfer/payment)"
+    transactions ||--o{ ledger_entries : "creates (1 for top-up, 2 for transfer/payment, 1-2 for reversal)"
     transactions ||--o| transactions : "reversed_transaction_id (FR-8 admin reversal)"
-    transactions ||--o| processor_authorizations : "authorized via (FR-3, FR-5)"
+    transactions ||--o{ processor_authorizations : "authorized via, one row per attempt (FR-3, FR-5, NFR-6)"
     users ||--o{ transactions : "reversed_by_admin_id (FR-8 audit)"
 
     users {
@@ -16,15 +19,15 @@ erDiagram
         varchar email UK "unique, not null (FR-1)"
         varchar password_hash "BCrypt hash, never plaintext (NFR-4)"
         varchar role "enum: USER | MERCHANT | ADMIN"
-        boolean enabled "account active flag"
+        boolean enabled "disabled users cannot log in or use existing tokens"
         timestamp created_at
         timestamp updated_at
     }
 
     wallets {
         uuid id PK
-        uuid user_id FK "references users.id, 1:1 (FR-2)"
-        numeric balance "NUMERIC(19,4), invariant balance >= 0"
+        uuid user_id FK, UK "references users.id, 1:1 (FR-2)"
+        numeric balance "NUMERIC(19,4), CHECK balance >= 0"
         varchar currency "e.g. USD, single currency scope"
         bigint version "optimistic locking (concurrent debit/credit)"
         timestamp created_at
@@ -34,11 +37,11 @@ erDiagram
     transactions {
         uuid id PK
         varchar type "enum: TOP_UP | TRANSFER | PAYMENT | REVERSAL"
-        numeric amount "NUMERIC(19,4)"
+        numeric amount "NUMERIC(19,4), CHECK amount > 0"
         varchar status "enum: PENDING | SUCCESS | FAILED | REVERSED"
-        varchar idempotency_key UK "unique, enforces FR-7 at DB level"
+        varchar idempotency_key UK "'<user id>:<client key>', per-user scope (FR-7)"
         uuid source_wallet_id FK "nullable; null for TOP_UP"
-        uuid target_wallet_id FK "nullable; null for standalone debit-only ops"
+        uuid target_wallet_id FK "nullable; CHECK differs from source"
         uuid reversed_transaction_id FK "nullable, self-ref; set only when type=REVERSAL"
         uuid reversed_by_admin_id FK "nullable; references users.id, set on FR-8 reversal"
         varchar correlation_id "request tracing id (NFR-7)"
@@ -51,30 +54,20 @@ erDiagram
         uuid wallet_id FK "references wallets.id"
         uuid transaction_id FK "references transactions.id"
         numeric delta "NUMERIC(19,4), signed (+credit / -debit)"
-        numeric balance_after "NUMERIC(19,4), immutable snapshot (NFR-3)"
+        numeric balance_after "NUMERIC(19,4), immutable snapshot, CHECK >= 0 (NFR-3)"
         timestamp created_at
     }
 
     processor_authorizations {
         uuid id PK
-        uuid transaction_id FK "references transactions.id (1:1 per attempt set)"
-        varchar reference "= transactions.id sent to mock processor"
+        uuid transaction_id FK "references transactions.id"
+        varchar reference "= transactions.id sent to the processor"
         numeric amount "NUMERIC(19,4), amount sent to processor"
         varchar currency "currency sent to processor"
-        varchar status "enum: APPROVED | DECLINED | TIMEOUT"
+        varchar status "enum: PENDING | APPROVED | DECLINED | TIMEOUT"
         varchar auth_code "nullable, returned only on APPROVED"
         int attempt_number "1..N, bounded retry count (NFR-6)"
         int timeout_ms "config snapshot at call time"
         timestamp requested_at
         timestamp responded_at "nullable if TIMEOUT"
-    }
-
-    auth_audit_log {
-        uuid id PK
-        uuid user_id FK "nullable; null if email not found"
-        varchar email_attempted "captures attempt even on unknown email"
-        varchar outcome "enum: SUCCESS | BAD_PASSWORD | NOT_FOUND | DISABLED"
-        varchar correlation_id "request tracing id (NFR-7)"
-        varchar ip_address "nullable, client origin"
-        timestamp attempted_at
     }
