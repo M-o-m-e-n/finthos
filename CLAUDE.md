@@ -28,7 +28,11 @@ PostgreSQL, Flyway. Full specs live in `docs/` — read them on demand, not all 
   Mockito unit tests need nothing.
 - `ModularityTest` fails the build if a module breaks the rules below, and writes
   module diagrams to `target/spring-modulith-docs`.
-- Local run: `docker compose up -d` then `./mvnw spring-boot:run` (Flyway migrates on startup).
+- Whole stack in Docker: `docker compose up -d --build` (db + Adminer + app from `Dockerfile`).
+  `docker-compose.yaml` includes `compose.db.yaml` (db + Adminer only) and adds the app.
+- Local run: `./mvnw spring-boot:run` — Spring's Docker Compose support starts only
+  `compose.db.yaml` (never the app container) and leaves it running (`lifecycle-management: start-only`).
+  Infrastructure services go in `compose.db.yaml`, not `docker-compose.yaml`.
 - API tests: `cd postman && npm ci && npm test` runs the Postman collection with Newman against a
   freshly started app + mock processor (see `postman/README.md`). When an endpoint, status code or
   error code changes, update `postman/finthos.postman_collection.json` in the same change.
