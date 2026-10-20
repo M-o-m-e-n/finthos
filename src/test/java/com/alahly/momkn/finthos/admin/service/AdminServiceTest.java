@@ -7,7 +7,7 @@ import com.alahly.momkn.finthos.transaction.domain.TxType;
 import com.alahly.momkn.finthos.transaction.service.TransactionService;
 import com.alahly.momkn.finthos.user.domain.Role;
 import com.alahly.momkn.finthos.user.domain.User;
-import com.alahly.momkn.finthos.user.repository.UserRepository;
+import com.alahly.momkn.finthos.user.service.UserService;
 import com.alahly.momkn.finthos.wallet.domain.Wallet;
 import com.alahly.momkn.finthos.wallet.service.WalletService;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,7 +34,7 @@ import static org.mockito.Mockito.when;
 class AdminServiceTest {
 
     @Mock
-    private UserRepository userRepository;
+    private UserService userService;
     @Mock
     private TransactionService transactionService;
     @Mock
@@ -54,7 +54,7 @@ class AdminServiceTest {
     void listUsers_returnsPaginatedUsers() {
         User user = User.create("alice", "alice@example.com", "hash", Role.USER);
         Page<User> page = new PageImpl<>(List.of(user), PageRequest.of(0, 20), 1);
-        when(userRepository.findAll(PageRequest.of(0, 20))).thenReturn(page);
+        when(userService.listUsers(PageRequest.of(0, 20))).thenReturn(page);
 
         AdminUserPage result = adminService.listUsers(0, 20);
 
