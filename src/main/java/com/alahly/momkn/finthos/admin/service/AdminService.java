@@ -68,9 +68,19 @@ public class AdminService {
         return toAdminUser(userService.toggleEnabled(userId));
     }
 
+    /**
+     * Hard delete is only allowed for users with no money history; anything else would destroy
+     * the audit trail. Such users should be disabled instead.
+     */
     @Transactional
     public void deleteUser(UUID userId) {
         userService.getById(userId);
+        walletService.findByUserId(userId).ifPresent(wallet -> {
+            if (transactionService.hasTransactions(wallet.getId())) {
+                throw new InvalidTransactionStateException(
+                        "User has transaction history and cannot be deleted; disable the account instead");
+            }
+        });
         userService.delete(userId);
     }
 

@@ -8,6 +8,7 @@ import com.alahly.momkn.finthos.transaction.service.TransactionService;
 import com.alahly.momkn.finthos.user.domain.Role;
 import com.alahly.momkn.finthos.user.domain.User;
 import com.alahly.momkn.finthos.user.service.UserService;
+import com.alahly.momkn.finthos.wallet.domain.Wallet;
 import com.alahly.momkn.finthos.wallet.service.WalletService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,7 @@ import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -114,5 +116,28 @@ class AdminServiceTest {
         verify(transactionService).markSuccess(reversal);
         verify(transactionService).markReversed(original);
         verify(transactionService, never()).markSuccess(original);
+    }
+
+    @Test
+    void deleteUser_withTransactionHistory_isRefused() {
+        UUID userId = UUID.randomUUID();
+        Wallet wallet = Wallet.create(userId, "USD");
+        when(walletService.findByUserId(userId)).thenReturn(Optional.of(wallet));
+        when(transactionService.hasTransactions(wallet.getId())).thenReturn(true);
+
+        assertThrows(InvalidTransactionStateException.class, () -> adminService.deleteUser(userId));
+        verify(userService, never()).delete(any());
+    }
+
+    @Test
+    void deleteUser_withoutHistory_deletes() {
+        UUID userId = UUID.randomUUID();
+        Wallet wallet = Wallet.create(userId, "USD");
+        when(walletService.findByUserId(userId)).thenReturn(Optional.of(wallet));
+        when(transactionService.hasTransactions(wallet.getId())).thenReturn(false);
+
+        adminService.deleteUser(userId);
+
+        verify(userService).delete(userId);
     }
 }
