@@ -26,7 +26,7 @@ public class ProcessorAuthorization implements Persistable<UUID> {
     private String reference;
     private BigDecimal amount;
     private String currency;
-    private String status;
+    private AuthorizationStatus status;
     private String authCode;
     private int attemptNumber;
     private int timeoutMs;
@@ -50,7 +50,7 @@ public class ProcessorAuthorization implements Persistable<UUID> {
                 .reference(reference)
                 .amount(amount)
                 .currency(currency)
-                .status("PENDING")
+                .status(AuthorizationStatus.PENDING)
                 .attemptNumber(attemptNumber)
                 .timeoutMs(timeoutMs)
                 .requestedAt(Instant.now())
@@ -59,18 +59,18 @@ public class ProcessorAuthorization implements Persistable<UUID> {
     }
 
     public void markApproved(String authCode) {
-        this.status = "APPROVED";
+        this.status = AuthorizationStatus.APPROVED;
         this.authCode = authCode;
         this.respondedAt = Instant.now();
     }
 
     public void markDeclined() {
-        this.status = "DECLINED";
+        this.status = AuthorizationStatus.DECLINED;
         this.respondedAt = Instant.now();
     }
 
     public void markTimeout() {
-        this.status = "TIMEOUT";
+        this.status = AuthorizationStatus.TIMEOUT;
         this.respondedAt = null;
     }
 

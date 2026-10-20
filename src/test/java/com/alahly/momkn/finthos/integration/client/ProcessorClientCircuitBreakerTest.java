@@ -53,7 +53,8 @@ class ProcessorClientCircuitBreakerTest {
 
     @Test
     void circuitBreakerOpensAfterRepeatedFailures() {
-        for (int i = 0; i < 5; i++) {
+        // 3 calls x 3 retry attempts each
+        for (int i = 0; i < 9; i++) {
             mockServer.enqueue(new MockResponse().setResponseCode(500));
         }
 
