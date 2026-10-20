@@ -1,6 +1,5 @@
 package com.alahly.momkn.finthos.common.error;
 
-import com.alahly.momkn.finthos.wallet.domain.InsufficientFundsException;
 import com.alahly.momkn.finthos.common.config.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;

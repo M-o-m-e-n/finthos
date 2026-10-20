@@ -1,5 +1,6 @@
 package com.alahly.momkn.finthos.wallet.domain;
 
+import com.alahly.momkn.finthos.common.error.InsufficientFundsException;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
