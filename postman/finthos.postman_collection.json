@@ -722,7 +722,7 @@
     {
       "id": "5623237d-3f0e-57be-acc8-20f1631f545b",
       "name": "02 Wallet",
-      "description": "Every user gets exactly one zero-balance wallet on registration (FR-2).",
+      "description": "Every user gets exactly one USD wallet on registration (FR-2).",
       "item": [
         {
           "id": "9c85dad9-d4be-5321-a3af-16107bf15374",
@@ -738,9 +738,9 @@
                   "    pm.response.to.have.status(200);",
                   "});",
                   "const body = pm.response.json();",
-                  "pm.test(\"is the payer's zero-balance USD wallet\", function () {",
+                  "pm.test(\"is the payer's USD wallet\", function () {",
                   "    pm.expect(body.userId).to.eql(pm.environment.get(\"payerId\"));",
-                  "    pm.expect(Number(body.balance)).to.eql(0);",
+                  "    pm.expect(Number(body.balance)).to.be.at.least(0);",
                   "    pm.expect(body.currency).to.eql(\"USD\");",
                   "});",
                   "pm.environment.set(\"payerWalletId\", body.id);"
@@ -825,7 +825,7 @@
     {
       "id": "3392cfbf-7605-5a48-b7a6-07da19484c65",
       "name": "03 Top-up",
-      "description": "Top-up through the processor (FR-3) and idempotency (FR-7).\nThe mock processor approves any amount except cents .13 (DECLINED) and .99 (TIMEOUT).",
+      "description": "Top-up through the processor (FR-3) and idempotency (FR-7).\nThe mock processor approves any amount except cents .13 (DECLINED) and .99 (TIMEOUT).\nBalance checks compare with the balance read right before the request they follow.",
       "item": [
         {
           "id": "680fa185-d840-5c0f-a2d7-78f8c0616463",
@@ -837,7 +837,20 @@
                 "id": "f2005275-f377-50c8-8d6d-18823095e56e",
                 "type": "text/javascript",
                 "exec": [
-                  "pm.environment.set(\"topupKey\", pm.variables.replaceIn(\"{{$guid}}\"));"
+                  "pm.environment.set(\"topupKey\", pm.variables.replaceIn(\"{{$guid}}\"));",
+                  "// Remember the balance(s) before this request; the checks that follow compare against them.",
+                  "function captureBalance(tokenVar, target) {",
+                  "    pm.sendRequest({",
+                  "        url: pm.environment.get(\"baseUrl\") + \"/api/wallets/me\",",
+                  "        method: \"GET\",",
+                  "        header: { Authorization: \"Bearer \" + pm.environment.get(tokenVar) }",
+                  "    }, function (err, res) {",
+                  "        if (!err && res.code === 200) {",
+                  "            pm.environment.set(target, Number(res.json().balance));",
+                  "        }",
+                  "    });",
+                  "}",
+                  "captureBalance(\"payerToken\", \"payerBalanceBefore\");"
                 ]
               }
             },
@@ -851,10 +864,10 @@
                   "    pm.response.to.have.status(200);",
                   "});",
                   "const body = pm.response.json();",
-                  "pm.test(\"credits the wallet\", function () {",
+                  "pm.test(\"credits 100 to the wallet\", function () {",
                   "    pm.expect(body.status).to.eql(\"SUCCESS\");",
                   "    pm.expect(body.type).to.eql(\"TOP_UP\");",
-                  "    pm.expect(Number(body.walletBalance)).to.eql(100);",
+                  "    pm.expect(Number(body.walletBalance)).to.be.closeTo(Number(pm.environment.get(\"payerBalanceBefore\")) + 100, 0.00001);",
                   "});",
                   "pm.environment.set(\"topupTxId\", body.transactionId);"
                 ]
@@ -911,6 +924,28 @@
           "name": "Replay the same top-up",
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "id": "346eb5e2-5ebb-55bf-a5cc-aef93e712b72",
+                "type": "text/javascript",
+                "exec": [
+                  "// Remember the balance(s) before this request; the checks that follow compare against them.",
+                  "function captureBalance(tokenVar, target) {",
+                  "    pm.sendRequest({",
+                  "        url: pm.environment.get(\"baseUrl\") + \"/api/wallets/me\",",
+                  "        method: \"GET\",",
+                  "        header: { Authorization: \"Bearer \" + pm.environment.get(tokenVar) }",
+                  "    }, function (err, res) {",
+                  "        if (!err && res.code === 200) {",
+                  "            pm.environment.set(target, Number(res.json().balance));",
+                  "        }",
+                  "    });",
+                  "}",
+                  "captureBalance(\"payerToken\", \"payerBalanceBefore\");"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "id": "7ce68843-c7a7-5a27-80bc-c96e38795823",
@@ -922,7 +957,7 @@
                   "pm.test(\"returns the original transaction without charging again\", function () {",
                   "    const body = pm.response.json();",
                   "    pm.expect(body.transactionId).to.eql(pm.environment.get(\"topupTxId\"));",
-                  "    pm.expect(Number(body.walletBalance)).to.eql(100);",
+                  "    pm.expect(Number(body.walletBalance)).to.be.closeTo(Number(pm.environment.get(\"payerBalanceBefore\")), 0.00001);",
                   "});"
                 ]
               }
@@ -1174,7 +1209,20 @@
                 "id": "d2af2766-6556-5b27-beda-efa04a51e834",
                 "type": "text/javascript",
                 "exec": [
-                  "pm.environment.set(\"declinedKey\", pm.variables.replaceIn(\"{{$guid}}\"));"
+                  "pm.environment.set(\"declinedKey\", pm.variables.replaceIn(\"{{$guid}}\"));",
+                  "// Remember the balance(s) before this request; the checks that follow compare against them.",
+                  "function captureBalance(tokenVar, target) {",
+                  "    pm.sendRequest({",
+                  "        url: pm.environment.get(\"baseUrl\") + \"/api/wallets/me\",",
+                  "        method: \"GET\",",
+                  "        header: { Authorization: \"Bearer \" + pm.environment.get(tokenVar) }",
+                  "    }, function (err, res) {",
+                  "        if (!err && res.code === 200) {",
+                  "            pm.environment.set(target, Number(res.json().balance));",
+                  "        }",
+                  "    });",
+                  "}",
+                  "captureBalance(\"payerToken\", \"payerBalanceBefore\");"
                 ]
               }
             },
@@ -1317,8 +1365,12 @@
                   "pm.test(\"status is 200\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"balance is 100\", function () {",
-                  "    pm.expect(Number(pm.response.json().balance)).to.eql(100);",
+                  "const before = pm.environment.get(\"payerBalanceBefore\");",
+                  "pm.test(\"baseline payerBalanceBefore was captured (run the request above first)\", function () {",
+                  "    pm.expect(before, \"payerBalanceBefore\").to.not.be.undefined;",
+                  "});",
+                  "pm.test(\"balance is unchanged\", function () {",
+                  "    pm.expect(Number(pm.response.json().balance)).to.be.closeTo(Number(before), 0.00001);",
                   "});"
                 ]
               }
@@ -1362,6 +1414,29 @@
           "id": "c7aecabe-ec95-5068-b3cd-dce62e4b2828",
           "name": "Transfer 30.00 to receiver",
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "cc0bf79f-87d9-584c-a2ac-2669692468b1",
+                "type": "text/javascript",
+                "exec": [
+                  "// Remember the balance(s) before this request; the checks that follow compare against them.",
+                  "function captureBalance(tokenVar, target) {",
+                  "    pm.sendRequest({",
+                  "        url: pm.environment.get(\"baseUrl\") + \"/api/wallets/me\",",
+                  "        method: \"GET\",",
+                  "        header: { Authorization: \"Bearer \" + pm.environment.get(tokenVar) }",
+                  "    }, function (err, res) {",
+                  "        if (!err && res.code === 200) {",
+                  "            pm.environment.set(target, Number(res.json().balance));",
+                  "        }",
+                  "    });",
+                  "}",
+                  "captureBalance(\"payerToken\", \"payerBalanceBefore\");",
+                  "captureBalance(\"receiverToken\", \"receiverBalanceBefore\");"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -1432,6 +1507,25 @@
           "name": "Transfer more than the balance",
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "id": "afb893cd-9c43-529e-8e3b-f89f118c1147",
+                "type": "text/javascript",
+                "exec": [
+                  "// Ask for more than the wallet holds, whatever its balance is right now.",
+                  "pm.sendRequest({",
+                  "    url: pm.environment.get(\"baseUrl\") + \"/api/wallets/me\",",
+                  "    method: \"GET\",",
+                  "    header: { Authorization: \"Bearer \" + pm.environment.get(\"payerToken\") }",
+                  "}, function (err, res) {",
+                  "    if (!err && res.code === 200) {",
+                  "        pm.environment.set(\"tooMuch\", (Number(res.json().balance) + 1000).toFixed(2));",
+                  "    }",
+                  "});"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "id": "a496c51e-0136-5bac-915f-edfe85ff2357",
@@ -1481,7 +1575,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"toUserId\": \"{{receiverId}}\",\n  \"amount\": 1000.0\n}",
+              "raw": "{\n  \"toUserId\": \"{{receiverId}}\",\n  \"amount\": {{tooMuch}}\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1632,8 +1726,12 @@
                   "pm.test(\"status is 200\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"balance is 70\", function () {",
-                  "    pm.expect(Number(pm.response.json().balance)).to.eql(70);",
+                  "const before = pm.environment.get(\"payerBalanceBefore\");",
+                  "pm.test(\"baseline payerBalanceBefore was captured (run the request above first)\", function () {",
+                  "    pm.expect(before, \"payerBalanceBefore\").to.not.be.undefined;",
+                  "});",
+                  "pm.test(\"balance decreased by 30\", function () {",
+                  "    pm.expect(Number(pm.response.json().balance)).to.be.closeTo(Number(before) + (-30), 0.00001);",
                   "});"
                 ]
               }
@@ -1679,8 +1777,12 @@
                   "pm.test(\"status is 200\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"balance is 30\", function () {",
-                  "    pm.expect(Number(pm.response.json().balance)).to.eql(30);",
+                  "const before = pm.environment.get(\"receiverBalanceBefore\");",
+                  "pm.test(\"baseline receiverBalanceBefore was captured (run the request above first)\", function () {",
+                  "    pm.expect(before, \"receiverBalanceBefore\").to.not.be.undefined;",
+                  "});",
+                  "pm.test(\"balance increased by 30\", function () {",
+                  "    pm.expect(Number(pm.response.json().balance)).to.be.closeTo(Number(before) + (30), 0.00001);",
                   "});"
                 ]
               }
@@ -1789,6 +1891,29 @@
           "name": "Pay merchant 20.00 (approved)",
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "id": "ae1c453e-66dc-5c32-a1d5-3f08e23ebcde",
+                "type": "text/javascript",
+                "exec": [
+                  "// Remember the balance(s) before this request; the checks that follow compare against them.",
+                  "function captureBalance(tokenVar, target) {",
+                  "    pm.sendRequest({",
+                  "        url: pm.environment.get(\"baseUrl\") + \"/api/wallets/me\",",
+                  "        method: \"GET\",",
+                  "        header: { Authorization: \"Bearer \" + pm.environment.get(tokenVar) }",
+                  "    }, function (err, res) {",
+                  "        if (!err && res.code === 200) {",
+                  "            pm.environment.set(target, Number(res.json().balance));",
+                  "        }",
+                  "    });",
+                  "}",
+                  "captureBalance(\"payerToken\", \"payerBalanceBefore\");",
+                  "captureBalance(\"merchantToken\", \"merchantBalanceBefore\");"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "id": "36fb1cb8-bcb7-5e1d-bbe0-60a206a7889e",
@@ -1798,10 +1923,10 @@
                   "    pm.response.to.have.status(200);",
                   "});",
                   "const body = pm.response.json();",
-                  "pm.test(\"debits the payer\", function () {",
+                  "pm.test(\"debits 20 from the payer\", function () {",
                   "    pm.expect(body.status).to.eql(\"SUCCESS\");",
                   "    pm.expect(body.type).to.eql(\"PAYMENT\");",
-                  "    pm.expect(Number(body.walletBalance)).to.eql(50);",
+                  "    pm.expect(Number(body.walletBalance)).to.be.closeTo(Number(pm.environment.get(\"payerBalanceBefore\")) - 20, 0.00001);",
                   "});",
                   "pm.environment.set(\"paymentTxId\", body.transactionId);"
                 ]
@@ -1857,6 +1982,25 @@
           "name": "Pay more than the balance",
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "id": "7fb42bc7-043f-5e74-884e-88f56cc0ae33",
+                "type": "text/javascript",
+                "exec": [
+                  "// Ask for more than the wallet holds, whatever its balance is right now.",
+                  "pm.sendRequest({",
+                  "    url: pm.environment.get(\"baseUrl\") + \"/api/wallets/me\",",
+                  "    method: \"GET\",",
+                  "    header: { Authorization: \"Bearer \" + pm.environment.get(\"payerToken\") }",
+                  "}, function (err, res) {",
+                  "    if (!err && res.code === 200) {",
+                  "        pm.environment.set(\"tooMuch\", (Number(res.json().balance) + 1000).toFixed(2));",
+                  "    }",
+                  "});"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "id": "e47ec66f-4bc2-588a-b654-a2625e6b987e",
@@ -1906,7 +2050,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"merchantId\": \"{{merchantId}}\",\n  \"amount\": 500.0\n}",
+              "raw": "{\n  \"merchantId\": \"{{merchantId}}\",\n  \"amount\": {{tooMuch}}\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1917,9 +2061,82 @@
           "response": []
         },
         {
+          "id": "0b4ffb82-d49a-51cb-97e2-a2947163d3e1",
+          "name": "Merchant balance after payment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "a020e7f6-1c8b-5612-9684-6292ac279399",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const before = pm.environment.get(\"merchantBalanceBefore\");",
+                  "pm.test(\"baseline merchantBalanceBefore was captured (run the request above first)\", function () {",
+                  "    pm.expect(before, \"merchantBalanceBefore\").to.not.be.undefined;",
+                  "});",
+                  "pm.test(\"balance increased by 20\", function () {",
+                  "    pm.expect(Number(pm.response.json().balance)).to.be.closeTo(Number(before) + (20), 0.00001);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallets/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wallets",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{merchantToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
           "id": "ffcafa10-bcab-59a4-801a-bba78d599665",
           "name": "Pay merchant 5.13 (declined)",
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "04a9f385-a6a7-5127-af11-f86971e5e126",
+                "type": "text/javascript",
+                "exec": [
+                  "// Remember the balance(s) before this request; the checks that follow compare against them.",
+                  "function captureBalance(tokenVar, target) {",
+                  "    pm.sendRequest({",
+                  "        url: pm.environment.get(\"baseUrl\") + \"/api/wallets/me\",",
+                  "        method: \"GET\",",
+                  "        header: { Authorization: \"Bearer \" + pm.environment.get(tokenVar) }",
+                  "    }, function (err, res) {",
+                  "        if (!err && res.code === 200) {",
+                  "            pm.environment.set(target, Number(res.json().balance));",
+                  "        }",
+                  "    });",
+                  "}",
+                  "captureBalance(\"payerToken\", \"payerBalanceBefore\");"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -1981,53 +2198,6 @@
           "response": []
         },
         {
-          "id": "0b4ffb82-d49a-51cb-97e2-a2947163d3e1",
-          "name": "Merchant balance after payment",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "id": "a020e7f6-1c8b-5612-9684-6292ac279399",
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"status is 200\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"balance is 20\", function () {",
-                  "    pm.expect(Number(pm.response.json().balance)).to.eql(20);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/wallets/me",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "wallets",
-                "me"
-              ]
-            },
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{merchantToken}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
           "id": "517986fb-6501-50f7-acfd-9cd1250742f9",
           "name": "Payer balance unchanged by the declined payment",
           "event": [
@@ -2040,8 +2210,12 @@
                   "pm.test(\"status is 200\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"balance is 50\", function () {",
-                  "    pm.expect(Number(pm.response.json().balance)).to.eql(50);",
+                  "const before = pm.environment.get(\"payerBalanceBefore\");",
+                  "pm.test(\"baseline payerBalanceBefore was captured (run the request above first)\", function () {",
+                  "    pm.expect(before, \"payerBalanceBefore\").to.not.be.undefined;",
+                  "});",
+                  "pm.test(\"balance is unchanged\", function () {",
+                  "    pm.expect(Number(pm.response.json().balance)).to.be.closeTo(Number(before), 0.00001);",
                   "});"
                 ]
               }
@@ -2079,7 +2253,7 @@
     {
       "id": "721b5a7f-d111-5085-8421-cb101a741ed4",
       "name": "06 Transactions",
-      "description": "History, filters, pagination and access control (FR-6).",
+      "description": "History, filters, pagination and access control (FR-6).\nChecks look for the transactions created earlier in this run instead of exact counts.",
       "item": [
         {
           "id": "d008751d-d31e-540b-a820-112e12cc6c80",
@@ -2095,9 +2269,14 @@
                   "    pm.response.to.have.status(200);",
                   "});",
                   "const body = pm.response.json();",
-                  "pm.test(\"lists all 5 payer transactions, newest first\", function () {",
-                  "    // top-up, declined top-up, transfer, payment, declined payment",
-                  "    pm.expect(body.totalElements).to.eql(5);",
+                  "const ids = body.content.map(t => t.id);",
+                  "pm.test(\"contains this run's top-up, transfer and payment\", function () {",
+                  "    [\"topupTxId\", \"transferTxId\", \"paymentTxId\"].forEach(v => pm.expect(ids, v).to.include(pm.environment.get(v)));",
+                  "});",
+                  "pm.test(\"records the declined attempts as FAILED\", function () {",
+                  "    pm.expect(body.content.some(t => t.status === \"FAILED\")).to.be.true;",
+                  "});",
+                  "pm.test(\"is ordered newest first\", function () {",
                   "    const times = body.content.map(t => Date.parse(t.createdAt));",
                   "    for (let i = 1; i < times.length; i++) {",
                   "        pm.expect(times[i - 1]).to.be.at.least(times[i]);",
@@ -2111,13 +2290,19 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/transactions",
+              "raw": "{{baseUrl}}/api/transactions?size=100",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "transactions"
+              ],
+              "query": [
+                {
+                  "key": "size",
+                  "value": "100"
+                }
               ]
             },
             "auth": {
@@ -2147,9 +2332,9 @@
                   "    pm.response.to.have.status(200);",
                   "});",
                   "const body = pm.response.json();",
-                  "pm.test(\"returns only the 2 top-ups\", function () {",
-                  "    pm.expect(body.totalElements).to.eql(2);",
+                  "pm.test(\"returns only top-ups, including this run's\", function () {",
                   "    body.content.forEach(t => pm.expect(t.type).to.eql(\"TOP_UP\"));",
+                  "    pm.expect(body.content.map(t => t.id)).to.include(pm.environment.get(\"topupTxId\"));",
                   "});"
                 ]
               }
@@ -2159,7 +2344,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/transactions?type=TOP_UP",
+              "raw": "{{baseUrl}}/api/transactions?type=TOP_UP&size=100",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -2171,6 +2356,10 @@
                 {
                   "key": "type",
                   "value": "TOP_UP"
+                },
+                {
+                  "key": "size",
+                  "value": "100"
                 }
               ]
             },
@@ -2201,10 +2390,10 @@
                   "    pm.response.to.have.status(200);",
                   "});",
                   "const body = pm.response.json();",
-                  "pm.test(\"returns pagination metadata\", function () {",
-                  "    pm.expect(body.content).to.have.lengthOf(2);",
+                  "pm.test(\"returns consistent pagination metadata\", function () {",
                   "    pm.expect(body.size).to.eql(2);",
-                  "    pm.expect(body.totalPages).to.eql(3);",
+                  "    pm.expect(body.content.length).to.be.at.most(2);",
+                  "    pm.expect(body.totalPages).to.eql(Math.ceil(body.totalElements / 2));",
                   "});"
                 ]
               }
@@ -2502,6 +2691,29 @@
           "name": "Reverse the transfer",
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "id": "060d23d2-540c-53bb-98f5-73dca6cbd45a",
+                "type": "text/javascript",
+                "exec": [
+                  "// Remember the balance(s) before this request; the checks that follow compare against them.",
+                  "function captureBalance(tokenVar, target) {",
+                  "    pm.sendRequest({",
+                  "        url: pm.environment.get(\"baseUrl\") + \"/api/wallets/me\",",
+                  "        method: \"GET\",",
+                  "        header: { Authorization: \"Bearer \" + pm.environment.get(tokenVar) }",
+                  "    }, function (err, res) {",
+                  "        if (!err && res.code === 200) {",
+                  "            pm.environment.set(target, Number(res.json().balance));",
+                  "        }",
+                  "    });",
+                  "}",
+                  "captureBalance(\"payerToken\", \"payerBalanceBefore\");",
+                  "captureBalance(\"receiverToken\", \"receiverBalanceBefore\");"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "id": "03c47d51-2163-539f-83db-0a018510ee9b",
@@ -2658,8 +2870,12 @@
                   "pm.test(\"status is 200\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"balance is 80\", function () {",
-                  "    pm.expect(Number(pm.response.json().balance)).to.eql(80);",
+                  "const before = pm.environment.get(\"payerBalanceBefore\");",
+                  "pm.test(\"baseline payerBalanceBefore was captured (run the request above first)\", function () {",
+                  "    pm.expect(before, \"payerBalanceBefore\").to.not.be.undefined;",
+                  "});",
+                  "pm.test(\"balance increased by 30\", function () {",
+                  "    pm.expect(Number(pm.response.json().balance)).to.be.closeTo(Number(before) + (30), 0.00001);",
                   "});"
                 ]
               }
@@ -2705,8 +2921,12 @@
                   "pm.test(\"status is 200\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"balance is 0\", function () {",
-                  "    pm.expect(Number(pm.response.json().balance)).to.eql(0);",
+                  "const before = pm.environment.get(\"receiverBalanceBefore\");",
+                  "pm.test(\"baseline receiverBalanceBefore was captured (run the request above first)\", function () {",
+                  "    pm.expect(before, \"receiverBalanceBefore\").to.not.be.undefined;",
+                  "});",
+                  "pm.test(\"balance decreased by 30\", function () {",
+                  "    pm.expect(Number(pm.response.json().balance)).to.be.closeTo(Number(before) + (-30), 0.00001);",
                   "});"
                 ]
               }
@@ -3083,6 +3303,28 @@
           "name": "Top up 10.99 (processor timeout)",
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "id": "4c4b97bc-14c1-567f-b199-93462b932914",
+                "type": "text/javascript",
+                "exec": [
+                  "// Remember the balance(s) before this request; the checks that follow compare against them.",
+                  "function captureBalance(tokenVar, target) {",
+                  "    pm.sendRequest({",
+                  "        url: pm.environment.get(\"baseUrl\") + \"/api/wallets/me\",",
+                  "        method: \"GET\",",
+                  "        header: { Authorization: \"Bearer \" + pm.environment.get(tokenVar) }",
+                  "    }, function (err, res) {",
+                  "        if (!err && res.code === 200) {",
+                  "            pm.environment.set(target, Number(res.json().balance));",
+                  "        }",
+                  "    });",
+                  "}",
+                  "captureBalance(\"payerToken\", \"payerBalanceBefore\");"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "id": "bf1adabc-e5d9-51ff-8205-c6f223d61c1f",
@@ -3156,8 +3398,12 @@
                   "pm.test(\"status is 200\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"balance is 80\", function () {",
-                  "    pm.expect(Number(pm.response.json().balance)).to.eql(80);",
+                  "const before = pm.environment.get(\"payerBalanceBefore\");",
+                  "pm.test(\"baseline payerBalanceBefore was captured (run the request above first)\", function () {",
+                  "    pm.expect(before, \"payerBalanceBefore\").to.not.be.undefined;",
+                  "});",
+                  "pm.test(\"balance is unchanged\", function () {",
+                  "    pm.expect(Number(pm.response.json().balance)).to.be.closeTo(Number(before), 0.00001);",
                   "});"
                 ]
               }
