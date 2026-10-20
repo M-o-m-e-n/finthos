@@ -45,6 +45,15 @@ npm run test:running-app                                # terminal 3 (postman/)
 
 In PowerShell, terminal 2 is: `$env:PROCESSOR_BASE_URL="http://localhost:18072"; .\mvnw.cmd spring-boot:run`
 
+### Against the Docker stack
+
+Point the app container at the runner's mock on the host, then run without starting an app:
+
+```bash
+PROCESSOR_BASE_URL=http://host.docker.internal:18072 docker compose up -d --build   # repo root
+npm run test:running-app                                                         # postman/
+```
+
 Use a freshly started app: the last folder trips the processor circuit breaker
 (see below), so a second run within ~10 s against the same app gets 503s.
 
