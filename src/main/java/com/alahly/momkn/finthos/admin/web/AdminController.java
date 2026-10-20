@@ -6,7 +6,7 @@ import com.alahly.momkn.finthos.admin.web.dto.AdminUserResponse;
 import com.alahly.momkn.finthos.transaction.domain.Transaction;
 import com.alahly.momkn.finthos.transaction.web.dto.TxResponse;
 import com.alahly.momkn.finthos.user.domain.User;
-import com.alahly.momkn.finthos.user.repository.UserRepository;
+import com.alahly.momkn.finthos.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -28,7 +28,7 @@ import java.util.UUID;
 public class AdminController {
 
     private final AdminService adminService;
-    private final UserRepository userRepository;
+    private final UserService userService;
 
     @GetMapping("/users")
     public ResponseEntity<AdminUserPage> listUsers(
@@ -42,8 +42,7 @@ public class AdminController {
             @PathVariable UUID id,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        User admin = userRepository.findByEmail(userDetails.getUsername())
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        User admin = userService.getByEmail(userDetails.getUsername());
 
         Transaction reversal = adminService.reverseTransaction(id, admin.getId());
 

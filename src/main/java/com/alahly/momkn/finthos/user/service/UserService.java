@@ -37,4 +37,9 @@ public class UserService {
         walletService.createForUser(saved.getId(), "USD");
         return userMapper.toResponse(saved);
     }
+
+    public User getByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
+    }
 }

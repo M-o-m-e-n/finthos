@@ -9,7 +9,7 @@ import com.alahly.momkn.finthos.transaction.web.dto.TransactionPage;
 import com.alahly.momkn.finthos.transaction.web.dto.TransferRequest;
 import com.alahly.momkn.finthos.transaction.web.dto.TxResponse;
 import com.alahly.momkn.finthos.user.domain.User;
-import com.alahly.momkn.finthos.user.repository.UserRepository;
+import com.alahly.momkn.finthos.user.service.UserService;
 import com.alahly.momkn.finthos.wallet.domain.Wallet;
 import com.alahly.momkn.finthos.wallet.repository.WalletRepository;
 import jakarta.validation.Valid;
@@ -35,7 +35,7 @@ public class TransactionController {
 
     private final TransferService transferService;
     private final TransactionService transactionService;
-    private final UserRepository userRepository;
+    private final UserService userService;
     private final WalletRepository walletRepository;
 
     @PostMapping("/transfers")
@@ -44,8 +44,7 @@ public class TransactionController {
             @Valid @RequestBody TransferRequest request,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
 
-        User sender = userRepository.findByEmail(userDetails.getUsername())
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        User sender = userService.getByEmail(userDetails.getUsername());
 
         String key = (idempotencyKey != null && !idempotencyKey.isBlank())
                 ? idempotencyKey
@@ -79,8 +78,7 @@ public class TransactionController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
-        User user = userRepository.findByEmail(userDetails.getUsername())
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        User user = userService.getByEmail(userDetails.getUsername());
 
         Wallet wallet = walletRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Wallet not found"));
@@ -121,8 +119,7 @@ public class TransactionController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable UUID id) {
 
-        User user = userRepository.findByEmail(userDetails.getUsername())
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        User user = userService.getByEmail(userDetails.getUsername());
 
         Wallet wallet = walletRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Wallet not found"));
