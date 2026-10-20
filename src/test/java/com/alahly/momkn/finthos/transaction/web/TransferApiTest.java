@@ -82,6 +82,7 @@ class TransferApiTest {
         String body = objectMapper.writeValueAsString(new TransferRequest(receiverId, new BigDecimal("30.00")));
 
         mockMvc.perform(post("/api/transfers")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .header("Authorization", "Bearer " + senderToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
@@ -101,6 +102,7 @@ class TransferApiTest {
         String body = objectMapper.writeValueAsString(new TransferRequest(receiverId, new BigDecimal("200.00")));
 
         mockMvc.perform(post("/api/transfers")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .header("Authorization", "Bearer " + senderToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
@@ -113,6 +115,7 @@ class TransferApiTest {
         String body = objectMapper.writeValueAsString(new TransferRequest(senderId, new BigDecimal("10.00")));
 
         mockMvc.perform(post("/api/transfers")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .header("Authorization", "Bearer " + senderToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
@@ -136,6 +139,7 @@ class TransferApiTest {
                 startLatch.await();
                 String transferBody = objectMapper.writeValueAsString(new TransferRequest(receiverId, transferAmount));
                 MvcResult result = mockMvc.perform(post("/api/transfers")
+                                .header("Idempotency-Key", UUID.randomUUID().toString())
                                 .header("Authorization", "Bearer " + senderToken)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(transferBody))

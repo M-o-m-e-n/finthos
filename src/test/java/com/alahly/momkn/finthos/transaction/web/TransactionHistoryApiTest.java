@@ -74,6 +74,7 @@ class TransactionHistoryApiTest {
     private void doTransfer(BigDecimal amount) throws Exception {
         String body = objectMapper.writeValueAsString(new TransferRequest(receiverId, amount));
         mockMvc.perform(post("/api/transfers")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .header("Authorization", "Bearer " + senderToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))

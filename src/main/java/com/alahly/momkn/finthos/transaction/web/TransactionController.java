@@ -43,19 +43,15 @@ public class TransactionController {
     public ResponseEntity<TxResponse> transfer(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody TransferRequest request,
-            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+            @RequestHeader("Idempotency-Key") String idempotencyKey) {
 
         User sender = userService.getByEmail(userDetails.getUsername());
-
-        String key = (idempotencyKey != null && !idempotencyKey.isBlank())
-                ? idempotencyKey
-                : UUID.randomUUID().toString();
 
         Transaction tx = transferService.transfer(
                 sender.getId(),
                 request.getToUserId(),
                 request.getAmount(),
-                key);
+                idempotencyKey);
 
         TxResponse response = TxResponse.builder()
                 .id(tx.getId())

@@ -146,6 +146,7 @@ class PaymentApiTest {
     void pay_unauthenticated_returns403() throws Exception {
         PaymentRequest req = new PaymentRequest(merchantId, new BigDecimal("30.00"));
         mockMvc.perform(post("/api/payments")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isForbidden());
