@@ -20,7 +20,7 @@ logbook:
 processor:
   base-url: http://localhost:9090
   timeout-ms: 2000
-  retry-count: 1
+  retry-count: 3
   retry-delay-ms: 100
 
 resilience4j:

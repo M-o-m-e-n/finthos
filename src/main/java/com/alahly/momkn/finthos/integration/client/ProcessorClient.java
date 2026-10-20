@@ -11,10 +11,7 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Recover;
-import org.springframework.retry.annotation.Retryable;
-import org.springframework.retry.support.RetrySynchronizationManager;
+import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
@@ -29,6 +26,7 @@ public class ProcessorClient {
     private final RestClient rest;
     private final ProcessorProperties props;
     private final ProcessorAuthorizationRepository authRepo;
+    private final RetryTemplate retryTemplate;
 
     public ProcessorClient(RestClient.Builder builder,
                            ProcessorProperties props,
@@ -44,10 +42,21 @@ public class ProcessorClient {
                 .baseUrl(props.baseUrl())
                 .requestFactory(factory)
                 .build();
+
+        // Programmatic rather than @Retryable: authorizeWithCircuitBreaker calls this through
+        // `this`, which would bypass the retry proxy and silently disable retries.
+        this.retryTemplate = RetryTemplate.builder()
+                .maxAttempts(Math.max(1, props.retryCount()))
+                .fixedBackoff(Math.max(1, props.retryDelayMs()))
+                .retryOn(ProcessorTimeoutException.class)
+                .build();
     }
 
     public ProcessorResponse authorize(UUID transactionId, ProcessorRequest req) {
-        int attemptNumber = currentAttempt();
+        return authorize(transactionId, req, 1);
+    }
+
+    private ProcessorResponse authorize(UUID transactionId, ProcessorRequest req, int attemptNumber) {
         ProcessorAuthorization auth = ProcessorAuthorization.create(
                 transactionId, req.reference(), req.amount(), req.currency(),
                 attemptNumber, props.timeoutMs());
@@ -103,28 +112,13 @@ public class ProcessorClient {
         }
     }
 
-    @Retryable(
-            retryFor = ProcessorTimeoutException.class,
-            maxAttemptsExpression = "#{${processor.retry-count}}",
-            backoff = @Backoff(delayExpression = "#{${processor.retry-delay-ms:1000}}")
-    )
     public ProcessorResponse authorizeWithRetry(UUID transactionId, ProcessorRequest req) {
-        return authorize(transactionId, req);
+        return retryTemplate.execute(ctx -> authorize(transactionId, req, ctx.getRetryCount() + 1));
     }
 
     @CircuitBreaker(name = "processor", fallbackMethod = "circuitBreakerFallback")
     public ProcessorResponse authorizeWithCircuitBreaker(UUID transactionId, ProcessorRequest req) {
         return authorizeWithRetry(transactionId, req);
-    }
-
-    @Recover
-    public ProcessorResponse recoverTimeout(ProcessorTimeoutException e, UUID transactionId, ProcessorRequest req) {
-        throw e;
-    }
-
-    @Recover
-    public ProcessorResponse recoverAny(RuntimeException e, UUID transactionId, ProcessorRequest req) {
-        throw e;
     }
 
     public ProcessorResponse circuitBreakerFallback(UUID transactionId, ProcessorRequest req, Throwable t) {
@@ -135,11 +129,6 @@ public class ProcessorClient {
             log.warn("Circuit breaker open for processor, failing fast for {}", req.reference());
         }
         throw new ProcessorUnavailableException(req.reference(), t);
-    }
-
-    private int currentAttempt() {
-        var context = RetrySynchronizationManager.getContext();
-        return context != null ? context.getRetryCount() + 1 : 1;
     }
 
     private void markPersisted(ProcessorAuthorization auth) {

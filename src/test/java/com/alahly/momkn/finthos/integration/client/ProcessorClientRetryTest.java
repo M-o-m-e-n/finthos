@@ -87,4 +87,18 @@ class ProcessorClientRetryTest {
         assertThatThrownBy(() -> processorClient.authorizeWithRetry(UUID.randomUUID(), req))
                 .isInstanceOf(ProcessorDeclinedException.class);
     }
+
+    @Test
+    void retryAlsoAppliesThroughCircuitBreakerPath() {
+        mockServer.enqueue(new MockResponse().setResponseCode(500));
+        mockServer.enqueue(new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"reference\":\"tx-6\",\"status\":\"APPROVED\",\"authCode\":\"cb\"}"));
+
+        ProcessorRequest req = new ProcessorRequest("tx-6", new BigDecimal("10.00"), "USD");
+        ProcessorResponse response = processorClient.authorizeWithCircuitBreaker(UUID.randomUUID(), req);
+
+        assertThat(response.isApproved()).isTrue();
+        assertThat(response.authCode()).isEqualTo("cb");
+    }
 }
