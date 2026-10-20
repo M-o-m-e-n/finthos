@@ -153,4 +153,14 @@ class TopUpApiTest {
                 "SELECT status FROM transactions WHERE target_wallet_id = ?", String.class, walletId);
         assertThat(statuses).containsExactly("FAILED");
     }
+
+    @Test
+    void topUp_moreThanFourDecimals_returns400() throws Exception {
+        mockMvc.perform(post("/api/wallets/topup")
+                        .header("Authorization", "Bearer " + userToken)
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TopUpRequest(new BigDecimal("10.12345")))))
+                .andExpect(status().isBadRequest());
+    }
 }
