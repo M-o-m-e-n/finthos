@@ -5,7 +5,13 @@ param(
     [string]$Message = ""
 )
 
-$project = Split-Path -Leaf ($env:CLAUDE_PROJECT_DIR, (Get-Location).Path | Where-Object { $_ } | Select-Object -First 1)
+$root = ($env:CLAUDE_PROJECT_DIR, (Get-Location).Path | Where-Object { $_ } | Select-Object -First 1)
+
+# Claude creates .claude/.busy while a request is still in progress (e.g. while it waits on
+# background work) and deletes it when the whole request is done. Stay silent until then.
+if (Test-Path (Join-Path $root '.claude/.busy')) { exit 0 }
+
+$project = Split-Path -Leaf $root
 if (-not $Message) { $Message = "Finished working on $project - your turn." }
 
 function Escape-Xml([string]$s) { [System.Security.SecurityElement]::Escape($s) }

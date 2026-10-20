@@ -31,3 +31,7 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Claude Code ###
+# present while Claude is mid-request; suppresses the Stop-hook toast
+.claude/.busy
