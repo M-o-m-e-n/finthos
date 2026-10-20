@@ -43,23 +43,42 @@ writes module diagrams to `target/spring-modulith-docs`.
 
 ## Quick Start
 
-### Prerequisites
+### Run everything in Docker
 
-- Java 17+
-- Docker & Docker Compose
-- Maven (or use the included `mvnw`)
-
-### Run
+Only Docker is needed:
 
 ```bash
-# Start PostgreSQL + Adminer
-docker compose up -d
+docker compose up -d --build
+```
 
-# Start the application
+This builds the app image (`Dockerfile`) and starts PostgreSQL, Adminer and the app on
+`http://localhost:8080`; the app waits until the database is healthy, and Flyway migrates on startup.
+Use `docker compose up -d --build` again after code changes, `docker compose logs -f app` to follow
+the logs, and `docker compose down` to stop (add `-v` to also delete the database).
+
+The payment processor is not part of the stack. By default the app calls a processor mock on your
+machine at port 8072 (e.g. SoapUI) via `host.docker.internal`. To use the bundled mock instead:
+
+```bash
+PROCESSOR_BASE_URL=http://mock-processor:18072 docker compose --profile mock up -d --build
+```
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `APP_PORT` | `8080` | Host port for the app |
+| `PROCESSOR_BASE_URL` | `http://host.docker.internal:8072` | Payment processor |
+| `FINTHOS_JWT_SECRET` | dev secret | JWT signing key |
+
+### Run the app locally (for development)
+
+Prerequisites: Java 17+, Docker. Maven comes with `mvnw`.
+
+```bash
 ./mvnw spring-boot:run
 ```
 
-The app starts on `http://localhost:8080`. Flyway runs migrations automatically on startup.
+Spring Boot starts PostgreSQL + Adminer from `compose.db.yaml` if they are not running (it never
+starts the app container) and leaves them running afterwards.
 
 **Adminer** (DB UI): `http://localhost:8888` — login: `finthos / finthos / finthos`
 
