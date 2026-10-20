@@ -1,5 +1,6 @@
 package com.alahly.momkn.finthos.wallet.service;
 
+import com.alahly.momkn.finthos.common.error.EntityNotFoundException;
 import com.alahly.momkn.finthos.transaction.domain.LedgerEntry;
 import com.alahly.momkn.finthos.transaction.repository.LedgerRepository;
 import com.alahly.momkn.finthos.wallet.domain.Wallet;
@@ -84,7 +85,7 @@ class WalletServiceTest {
         UUID userId = UUID.randomUUID();
         when(walletRepository.findByUserId(userId)).thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(EntityNotFoundException.class,
                 () -> walletService.getByUserId(userId));
     }
 
@@ -115,7 +116,7 @@ class WalletServiceTest {
     void getBalance_throwsWhenWalletNotFound() {
         when(walletRepository.findById(any(UUID.class))).thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(EntityNotFoundException.class,
                 () -> walletService.getBalance(UUID.randomUUID()));
     }
 

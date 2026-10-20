@@ -1,5 +1,6 @@
 package com.alahly.momkn.finthos.wallet.service;
 
+import com.alahly.momkn.finthos.common.error.EntityNotFoundException;
 import com.alahly.momkn.finthos.transaction.domain.LedgerEntry;
 import com.alahly.momkn.finthos.transaction.repository.LedgerRepository;
 import com.alahly.momkn.finthos.wallet.domain.Wallet;
@@ -19,7 +20,7 @@ public class WalletService {
 
     public Wallet getByUserId(UUID userId) {
         return walletRepository.findByUserId(userId)
-                .orElseThrow(() -> new IllegalArgumentException("No wallet for user: " + userId));
+                .orElseThrow(() -> new EntityNotFoundException("No wallet for user: " + userId));
     }
 
     public Wallet createForUser(UUID userId, String currency) {
@@ -28,8 +29,7 @@ public class WalletService {
     }
 
     public Wallet credit(UUID walletId, BigDecimal amount, UUID transactionId) {
-        Wallet wallet = walletRepository.findById(walletId)
-                .orElseThrow(() -> new IllegalArgumentException("Wallet not found: " + walletId));
+        Wallet wallet = getById(walletId);
         wallet.credit(amount);
         Wallet saved = walletRepository.save(wallet);
         ledgerRepository.save(LedgerEntry.create(walletId, transactionId, amount, saved.getBalance()));
@@ -37,8 +37,7 @@ public class WalletService {
     }
 
     public Wallet debit(UUID walletId, BigDecimal amount, UUID transactionId) {
-        Wallet wallet = walletRepository.findById(walletId)
-                .orElseThrow(() -> new IllegalArgumentException("Wallet not found: " + walletId));
+        Wallet wallet = getById(walletId);
         wallet.debit(amount);
         Wallet saved = walletRepository.save(wallet);
         ledgerRepository.save(LedgerEntry.create(walletId, transactionId, amount.negate(), saved.getBalance()));
@@ -46,8 +45,11 @@ public class WalletService {
     }
 
     public BigDecimal getBalance(UUID walletId) {
-        Wallet wallet = walletRepository.findById(walletId)
-                .orElseThrow(() -> new IllegalArgumentException("Wallet not found: " + walletId));
-        return wallet.getBalance();
+        return getById(walletId).getBalance();
+    }
+
+    private Wallet getById(UUID walletId) {
+        return walletRepository.findById(walletId)
+                .orElseThrow(() -> new EntityNotFoundException("Wallet not found: " + walletId));
     }
 }

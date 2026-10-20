@@ -46,7 +46,7 @@ public class UserService {
 
     public User getByEmail(String email) {
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
+                .orElseThrow(() -> new EntityNotFoundException("User not found: " + email));
     }
 
     public User getById(UUID userId) {

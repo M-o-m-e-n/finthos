@@ -1,5 +1,6 @@
 package com.alahly.momkn.finthos.transaction.service;
 
+import com.alahly.momkn.finthos.common.error.EntityNotFoundException;
 import com.alahly.momkn.finthos.transaction.domain.Transaction;
 import com.alahly.momkn.finthos.transaction.domain.TxStatus;
 import com.alahly.momkn.finthos.transaction.domain.TxType;
@@ -79,7 +80,7 @@ class TransactionServiceTest {
     void findById_throwsWhenNotFound() {
         when(transactionRepository.findById(any(UUID.class))).thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(EntityNotFoundException.class,
                 () -> transactionService.findById(UUID.randomUUID()));
     }
 

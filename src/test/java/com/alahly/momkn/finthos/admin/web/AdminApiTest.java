@@ -87,7 +87,7 @@ class AdminApiTest {
     }
 
     @Test
-    void reverseTransaction_nonExistent_returns400() throws Exception {
+    void reverseTransaction_nonExistent_returns404() throws Exception {
         String unique = UUID.randomUUID().toString().substring(0, 8);
         User admin = User.create("admin-" + unique, "admin-" + unique + "@example.com",
                 passwordEncoder.encode("password123"), Role.ADMIN);
@@ -97,7 +97,7 @@ class AdminApiTest {
 
         mockMvc.perform(post("/api/admin/transactions/" + UUID.randomUUID() + "/reverse")
                         .header("Authorization", "Bearer " + token))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isNotFound());
     }
 
     @Test
