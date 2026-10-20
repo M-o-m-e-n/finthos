@@ -9,8 +9,10 @@
 //   4. writes CLI + JUnit + JSON reports to postman/reports and stops everything it started
 //
 // Options:
+//   --port N          port for the app this script starts (default 8080), e.g. --port 18080
+//                     to run next to an app you already have on 8080
 //   --no-start        use an app that is already running (it must use the mock processor URL)
-//   --base-url URL    app URL (default http://localhost:8080)
+//   --base-url URL    app URL for --no-start (default http://localhost:8080)
 //
 // Environment overrides: FINTHOS_DB_URL (default postgres://finthos:finthos@localhost:5432/finthos),
 // MOCK_PROCESSOR_PORT (default 18072), APP_START_TIMEOUT_MS (default 240000).
@@ -29,7 +31,8 @@ const SETUP_FOLDER = '00 Setup';
 
 const args = process.argv.slice(2);
 const startApp = !args.includes('--no-start');
-const baseUrl = valueOf('--base-url') || 'http://localhost:8080';
+const appPort = Number(valueOf('--port') || 8080);
+const baseUrl = valueOf('--base-url') || `http://localhost:${appPort}`;
 const mockPort = Number(process.env.MOCK_PROCESSOR_PORT || 18072);
 const dbUrl = process.env.FINTHOS_DB_URL || 'postgres://finthos:finthos@localhost:5432/finthos';
 const startTimeoutMs = Number(process.env.APP_START_TIMEOUT_MS || 240000);
@@ -71,7 +74,7 @@ function launchApp() {
   // target/classes would make Flyway fail ("more than one migration with version 1").
   return spawn(mvnw, ['-q', 'clean', 'spring-boot:run'], {
     cwd: ROOT,
-    env: { ...process.env, PROCESSOR_BASE_URL: `http://localhost:${mockPort}` },
+    env: { ...process.env, SERVER_PORT: String(appPort), PROCESSOR_BASE_URL: `http://localhost:${mockPort}` },
     stdio: ['ignore', out, out],
     shell: process.platform === 'win32', // .cmd files need a shell on Windows
     detached: process.platform !== 'win32', // own process group so we can stop Maven + the JVM
@@ -139,7 +142,7 @@ async function main() {
   try {
     if (startApp) {
       if (await isUp(baseUrl)) {
-        throw new Error(`something is already serving ${baseUrl}; stop it or use --no-start`);
+        throw new Error(`something is already serving ${baseUrl}; use --port <other port> to start a separate instance, or --no-start to test that one`);
       }
       if (spawnSync('docker', ['version', '--format', '{{.Server.Version}}'], { stdio: 'ignore' }).status !== 0) {
         throw new Error('Docker is not running; start Docker Desktop (PostgreSQL comes from docker-compose.yaml)');
