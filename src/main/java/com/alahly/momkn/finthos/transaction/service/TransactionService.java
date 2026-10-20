@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -41,6 +42,16 @@ public class TransactionService {
     public Transaction findById(UUID txId) {
         return transactionRepository.findById(txId)
                 .orElseThrow(() -> new IllegalArgumentException("Transaction not found: " + txId));
+    }
+
+    /** Returns the transaction if the wallet is a party to it (or the caller is an admin). */
+    public Transaction getVisibleTo(UUID txId, UUID walletId, boolean isAdmin) {
+        Transaction tx = findById(txId);
+        boolean isParty = walletId.equals(tx.getSourceWalletId()) || walletId.equals(tx.getTargetWalletId());
+        if (!isAdmin && !isParty) {
+            throw new AccessDeniedException("Transaction does not belong to this user");
+        }
+        return tx;
     }
 
     public void markPersisted(Transaction tx) {
