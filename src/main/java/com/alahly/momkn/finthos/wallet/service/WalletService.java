@@ -1,12 +1,12 @@
 package com.alahly.momkn.finthos.wallet.service;
 
+import com.alahly.momkn.finthos.transaction.service.LedgerService;
 import com.alahly.momkn.finthos.common.error.EntityNotFoundException;
-import com.alahly.momkn.finthos.transaction.domain.LedgerEntry;
-import com.alahly.momkn.finthos.transaction.repository.LedgerRepository;
 import com.alahly.momkn.finthos.wallet.domain.Wallet;
 import com.alahly.momkn.finthos.wallet.repository.WalletRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -16,7 +16,7 @@ import java.util.UUID;
 public class WalletService {
 
     private final WalletRepository walletRepository;
-    private final LedgerRepository ledgerRepository;
+    private final LedgerService ledgerService;
 
     public Wallet getByUserId(UUID userId) {
         return walletRepository.findByUserId(userId)
@@ -28,19 +28,21 @@ public class WalletService {
         return walletRepository.save(wallet);
     }
 
+    @Transactional
     public Wallet credit(UUID walletId, BigDecimal amount, UUID transactionId) {
         Wallet wallet = getById(walletId);
         wallet.credit(amount);
         Wallet saved = walletRepository.save(wallet);
-        ledgerRepository.save(LedgerEntry.create(walletId, transactionId, amount, saved.getBalance()));
+        ledgerService.record(walletId, transactionId, amount, saved.getBalance());
         return saved;
     }
 
+    @Transactional
     public Wallet debit(UUID walletId, BigDecimal amount, UUID transactionId) {
         Wallet wallet = getById(walletId);
         wallet.debit(amount);
         Wallet saved = walletRepository.save(wallet);
-        ledgerRepository.save(LedgerEntry.create(walletId, transactionId, amount.negate(), saved.getBalance()));
+        ledgerService.record(walletId, transactionId, amount.negate(), saved.getBalance());
         return saved;
     }
 

@@ -1,8 +1,7 @@
 package com.alahly.momkn.finthos.wallet.service;
 
+import com.alahly.momkn.finthos.transaction.service.LedgerService;
 import com.alahly.momkn.finthos.common.error.EntityNotFoundException;
-import com.alahly.momkn.finthos.transaction.domain.LedgerEntry;
-import com.alahly.momkn.finthos.transaction.repository.LedgerRepository;
 import com.alahly.momkn.finthos.wallet.domain.Wallet;
 import com.alahly.momkn.finthos.wallet.repository.WalletRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,7 +27,7 @@ class WalletServiceTest {
     @Mock
     private WalletRepository walletRepository;
     @Mock
-    private LedgerRepository ledgerRepository;
+    private LedgerService ledgerService;
 
     @InjectMocks
     private WalletService walletService;
@@ -46,13 +45,12 @@ class WalletServiceTest {
         UUID txId = UUID.randomUUID();
         when(walletRepository.findById(wallet.getId())).thenReturn(Optional.of(wallet));
         when(walletRepository.save(any(Wallet.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(ledgerRepository.save(any(LedgerEntry.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Wallet result = walletService.credit(wallet.getId(), new BigDecimal("50.00"), txId);
 
         assertThat(result.getBalance()).isEqualByComparingTo(new BigDecimal("150.00"));
         verify(walletRepository).save(wallet);
-        verify(ledgerRepository).save(any(LedgerEntry.class));
+        verify(ledgerService).record(any(), any(), any(), any());
     }
 
     @Test
@@ -60,13 +58,12 @@ class WalletServiceTest {
         UUID txId = UUID.randomUUID();
         when(walletRepository.findById(wallet.getId())).thenReturn(Optional.of(wallet));
         when(walletRepository.save(any(Wallet.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(ledgerRepository.save(any(LedgerEntry.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Wallet result = walletService.debit(wallet.getId(), new BigDecimal("30.00"), txId);
 
         assertThat(result.getBalance()).isEqualByComparingTo(new BigDecimal("70.00"));
         verify(walletRepository).save(wallet);
-        verify(ledgerRepository).save(any(LedgerEntry.class));
+        verify(ledgerService).record(any(), any(), any(), any());
     }
 
     @Test
