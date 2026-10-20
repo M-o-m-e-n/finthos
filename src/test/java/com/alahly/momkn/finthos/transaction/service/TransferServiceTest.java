@@ -1,16 +1,17 @@
 package com.alahly.momkn.finthos.transaction.service;
 
+import com.alahly.momkn.finthos.wallet.domain.InsufficientFundsException;
 import com.alahly.momkn.finthos.transaction.domain.Transaction;
 import com.alahly.momkn.finthos.transaction.domain.TxType;
-import com.alahly.momkn.finthos.wallet.domain.InsufficientFundsException;
+import com.alahly.momkn.finthos.transaction.repository.TransactionRepository;
 import com.alahly.momkn.finthos.wallet.domain.Wallet;
 import com.alahly.momkn.finthos.wallet.service.WalletService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionOperations;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -32,36 +33,44 @@ class TransferServiceTest {
     @Mock
     private WalletService walletService;
     @Mock
-    private IdempotencyService idempotencyService;
+    private TransactionRepository transactionRepository;
 
-    @InjectMocks
     private TransferService transferService;
 
     private UUID senderUserId;
     private UUID receiverUserId;
+    private String scopedKey;
     private Wallet senderWallet;
     private Wallet receiverWallet;
     private Transaction pendingTx;
 
     @BeforeEach
     void setUp() {
+        transferService = new TransferService(transactionService, walletService,
+                new IdempotencyService(transactionRepository), TransactionOperations.withoutTransaction());
+
         senderUserId = UUID.randomUUID();
         receiverUserId = UUID.randomUUID();
+        scopedKey = senderUserId + ":key-1";
         senderWallet = Wallet.create(senderUserId, "USD");
         senderWallet.credit(new BigDecimal("100.00"));
         receiverWallet = Wallet.create(receiverUserId, "USD");
         pendingTx = Transaction.create(TxType.TRANSFER, new BigDecimal("30.00"),
-                "key-1", senderWallet.getId(), receiverWallet.getId());
+                scopedKey, senderWallet.getId(), receiverWallet.getId());
+    }
+
+    private void givenPending() {
+        when(transactionRepository.findByIdempotencyKey(scopedKey)).thenReturn(Optional.empty());
+        when(walletService.getByUserId(senderUserId)).thenReturn(senderWallet);
+        when(walletService.getByUserId(receiverUserId)).thenReturn(receiverWallet);
+        when(transactionService.create(eq(TxType.TRANSFER), eq(new BigDecimal("30.00")),
+                eq(scopedKey), eq(senderWallet.getId()), eq(receiverWallet.getId())))
+                .thenReturn(pendingTx);
     }
 
     @Test
     void transfer_debitsSenderCreditsReceiverAndMarksSuccess() {
-        when(idempotencyService.findExisting("key-1")).thenReturn(Optional.empty());
-        when(walletService.getByUserId(senderUserId)).thenReturn(senderWallet);
-        when(walletService.getByUserId(receiverUserId)).thenReturn(receiverWallet);
-        when(transactionService.create(eq(TxType.TRANSFER), eq(new BigDecimal("30.00")),
-                eq("key-1"), eq(senderWallet.getId()), eq(receiverWallet.getId())))
-                .thenReturn(pendingTx);
+        givenPending();
 
         Transaction result = transferService.transfer(senderUserId, receiverUserId,
                 new BigDecimal("30.00"), "key-1");
@@ -74,12 +83,7 @@ class TransferServiceTest {
 
     @Test
     void transfer_insufficientFunds_throwsAndDoesNotCredit() {
-        when(idempotencyService.findExisting("key-1")).thenReturn(Optional.empty());
-        when(walletService.getByUserId(senderUserId)).thenReturn(senderWallet);
-        when(walletService.getByUserId(receiverUserId)).thenReturn(receiverWallet);
-        when(transactionService.create(eq(TxType.TRANSFER), eq(new BigDecimal("30.00")),
-                eq("key-1"), eq(senderWallet.getId()), eq(receiverWallet.getId())))
-                .thenReturn(pendingTx);
+        givenPending();
         when(walletService.debit(eq(senderWallet.getId()), eq(new BigDecimal("30.00")), eq(pendingTx.getId())))
                 .thenThrow(new InsufficientFundsException(new BigDecimal("100.00"), new BigDecimal("30.00")));
 
@@ -103,10 +107,12 @@ class TransferServiceTest {
     @Test
     void transfer_existingIdempotencyKey_returnsCachedResult() {
         Transaction existing = Transaction.create(TxType.TRANSFER, new BigDecimal("30.00"),
-                "key-1", senderWallet.getId(), receiverWallet.getId());
+                scopedKey, senderWallet.getId(), receiverWallet.getId());
         existing.markPersisted();
         existing.markSuccess();
-        when(idempotencyService.findExisting("key-1")).thenReturn(Optional.of(existing));
+        when(walletService.getByUserId(senderUserId)).thenReturn(senderWallet);
+        when(walletService.getByUserId(receiverUserId)).thenReturn(receiverWallet);
+        when(transactionRepository.findByIdempotencyKey(scopedKey)).thenReturn(Optional.of(existing));
 
         Transaction result = transferService.transfer(senderUserId, receiverUserId,
                 new BigDecimal("30.00"), "key-1");
