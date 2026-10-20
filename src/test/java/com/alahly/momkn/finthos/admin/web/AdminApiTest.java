@@ -1,5 +1,9 @@
 package com.alahly.momkn.finthos.admin.web;
 
+import java.util.Map;
+import java.math.BigDecimal;
+import org.springframework.jdbc.core.JdbcTemplate;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.alahly.momkn.finthos.user.domain.Role;
 import com.alahly.momkn.finthos.user.domain.User;
 import com.alahly.momkn.finthos.user.repository.UserRepository;
@@ -16,6 +20,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -38,6 +43,9 @@ class AdminApiTest {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
     void setUp() {
@@ -205,5 +213,66 @@ class AdminApiTest {
                         .content("{\"email\":\"" + email + "\",\"password\":\"password123\"}"))
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("token").asText();
+    }
+
+    @Test
+    void reverseTransfer_restoresBalancesWithAuditTrail_andCannotBeReversedTwice() throws Exception {
+        String unique = UUID.randomUUID().toString().substring(0, 8);
+        User admin = User.create("admin-" + unique, "admin-rev-" + unique + "@example.com",
+                passwordEncoder.encode("password123"), Role.ADMIN);
+        userRepository.save(admin);
+        String adminToken = loginAndGetToken("admin-rev-" + unique + "@example.com");
+
+        JsonNode sender = register("rev-sender-" + unique);
+        JsonNode receiver = register("rev-receiver-" + unique);
+        UUID senderId = UUID.fromString(sender.get("user").get("id").asText());
+        UUID receiverId = UUID.fromString(receiver.get("user").get("id").asText());
+        jdbcTemplate.update("UPDATE wallets SET balance = 100.00 WHERE user_id = ?", senderId);
+
+        MvcResult transfer = mockMvc.perform(post("/api/transfers")
+                        .header("Authorization", "Bearer " + sender.get("token").asText())
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"toUserId\":\"" + receiverId + "\",\"amount\":40.00}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String originalId = objectMapper.readTree(transfer.getResponse().getContentAsString()).get("id").asText();
+
+        MvcResult reversal = mockMvc.perform(post("/api/admin/transactions/" + originalId + "/reverse")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.type").value("REVERSAL"))
+                .andReturn();
+        UUID reversalId = UUID.fromString(objectMapper.readTree(reversal.getResponse().getContentAsString()).get("id").asText());
+
+        assertThat(balanceOf(senderId)).isEqualByComparingTo("100.00");
+        assertThat(balanceOf(receiverId)).isEqualByComparingTo("0");
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM transactions WHERE id = ?",
+                String.class, UUID.fromString(originalId))).isEqualTo("REVERSED");
+        Map<String, Object> reversalRow = jdbcTemplate.queryForMap(
+                "SELECT reversed_transaction_id, reversed_by_admin_id FROM transactions WHERE id = ?", reversalId);
+        assertThat(reversalRow.get("reversed_transaction_id")).isEqualTo(UUID.fromString(originalId));
+        assertThat(reversalRow.get("reversed_by_admin_id")).isEqualTo(admin.getId());
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM ledger_entries WHERE transaction_id = ?",
+                Integer.class, reversalId)).isEqualTo(2);
+
+        mockMvc.perform(post("/api/admin/transactions/" + originalId + "/reverse")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("INVALID_STATE"));
+    }
+
+    private JsonNode register(String name) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"" + name + "\",\"email\":\"" + name
+                                + "@example.com\",\"password\":\"password123\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString());
+    }
+
+    private BigDecimal balanceOf(UUID userId) {
+        return jdbcTemplate.queryForObject("SELECT balance FROM wallets WHERE user_id = ?", BigDecimal.class, userId);
     }
 }

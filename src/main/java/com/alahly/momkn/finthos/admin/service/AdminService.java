@@ -2,9 +2,8 @@ package com.alahly.momkn.finthos.admin.service;
 
 import com.alahly.momkn.finthos.admin.web.dto.AdminUserPage;
 import com.alahly.momkn.finthos.admin.web.dto.AdminUserResponse;
+import com.alahly.momkn.finthos.common.error.InvalidTransactionStateException;
 import com.alahly.momkn.finthos.transaction.domain.Transaction;
-import com.alahly.momkn.finthos.transaction.domain.TxStatus;
-import com.alahly.momkn.finthos.transaction.domain.TxType;
 import com.alahly.momkn.finthos.transaction.service.TransactionService;
 import com.alahly.momkn.finthos.user.domain.User;
 import com.alahly.momkn.finthos.user.service.UserService;
@@ -44,27 +43,23 @@ public class AdminService {
     public Transaction reverseTransaction(UUID transactionId, UUID adminId) {
         Transaction original = transactionService.findById(transactionId);
 
-        if (original.getStatus() != TxStatus.SUCCESS) {
-            throw new IllegalStateException("Only SUCCESS transactions can be reversed");
+        if (!original.isReversible()) {
+            throw new InvalidTransactionStateException(
+                    "Only SUCCESS, non-reversal transactions can be reversed (status: " + original.getStatus() + ")");
         }
 
-        String idempotencyKey = "REVERSAL-" + original.getId();
-        Transaction reversal = transactionService.create(
-                TxType.REVERSAL, original.getAmount(), idempotencyKey,
-                original.getTargetWalletId(), original.getSourceWalletId());
+        Transaction reversal = transactionService.createReversal(original, adminId);
 
-        if (original.getSourceWalletId() != null) {
-            walletService.credit(original.getSourceWalletId(), original.getAmount(), reversal.getId());
-        }
+        // Debit first: if the target has already spent the money this fails before anything is credited.
         if (original.getTargetWalletId() != null) {
             walletService.debit(original.getTargetWalletId(), original.getAmount(), reversal.getId());
         }
+        if (original.getSourceWalletId() != null) {
+            walletService.credit(original.getSourceWalletId(), original.getAmount(), reversal.getId());
+        }
 
         transactionService.markSuccess(reversal);
-
-        original.setStatus(TxStatus.REVERSED);
-        transactionService.markPersisted(original);
-        transactionService.markSuccess(original);
+        transactionService.markReversed(original);
 
         return reversal;
     }
