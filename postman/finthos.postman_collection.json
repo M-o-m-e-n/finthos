@@ -1,0 +1,3196 @@
+{
+  "info": {
+    "_postman_id": "9075916e-1dd3-5158-b84e-5446e1a915b9",
+    "name": "Finthos API",
+    "description": "End-to-end checks for the Finthos digital-wallet API (contract: docs/openapi.yaml).\n\nRun everything with `npm test` in the `postman/` folder (see postman/README.md): it starts a mock\npayment processor and the app, runs **00 Setup**, promotes the merchant/admin users, then runs the\nremaining folders in order. Every run registers fresh users, so runs are independent.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "id": "3601b28f-05f2-5275-91f4-e73e16949865",
+        "type": "text/javascript",
+        "exec": [
+          "// One id per run so every run registers fresh users (keeps runs independent).",
+          "if (!pm.environment.get(\"runId\")) {",
+          "    pm.environment.set(\"runId\", Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36));",
+          "}",
+          "if (!pm.environment.get(\"password\")) {",
+          "    pm.environment.set(\"password\", \"Passw0rd!\" + pm.environment.get(\"runId\"));",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "id": "1c44266b-6bc0-5d20-a31b-8958ef296557",
+        "type": "text/javascript",
+        "exec": [
+          "pm.test(\"responds in under 5s\", function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+          "});"
+        ]
+      }
+    }
+  ],
+  "auth": {
+    "type": "noauth"
+  },
+  "item": [
+    {
+      "id": "b05cf188-f5ec-5e93-a269-4819f47d38f4",
+      "name": "00 Setup",
+      "description": "Registers the users the other folders need. Run this folder first.\n\nThe API cannot create ADMIN or MERCHANT users, so after this folder the runner\n(`postman/run-api-tests.js`) promotes them directly in the database:\n\n```sql\nUPDATE users SET role = 'MERCHANT' WHERE id = '<merchantId>';\nUPDATE users SET role = 'ADMIN'    WHERE id = '<adminId>';\n```\n\nWhen running by hand in Postman, execute those statements (ids are in the environment) before running the rest.",
+      "item": [
+        {
+          "id": "69c06326-9203-565d-bcb7-01db275404f3",
+          "name": "Register payer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "5f893478-6cb8-5fd4-8561-bda7349e696f",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"returns the new user and a token\", function () {",
+                  "    pm.expect(body.user.id).to.be.a(\"string\");",
+                  "    pm.expect(body.user.role).to.eql(\"USER\");",
+                  "    pm.expect(body.token).to.be.a(\"string\").and.not.empty;",
+                  "});",
+                  "pm.environment.set(\"payerId\", body.user.id);",
+                  "pm.environment.set(\"payerEmail\", body.user.email);",
+                  "pm.environment.set(\"payerToken\", body.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"payer_{{runId}}\",\n  \"email\": \"payer_{{runId}}@example.com\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "ebdcb147-9b72-5dfb-ac8c-3f4005faab2e",
+          "name": "Register receiver",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "792162ab-c454-5267-ad8a-aa13c49b89ad",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"returns the new user and a token\", function () {",
+                  "    pm.expect(body.user.id).to.be.a(\"string\");",
+                  "    pm.expect(body.user.role).to.eql(\"USER\");",
+                  "    pm.expect(body.token).to.be.a(\"string\").and.not.empty;",
+                  "});",
+                  "pm.environment.set(\"receiverId\", body.user.id);",
+                  "pm.environment.set(\"receiverEmail\", body.user.email);",
+                  "pm.environment.set(\"receiverToken\", body.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"receiver_{{runId}}\",\n  \"email\": \"receiver_{{runId}}@example.com\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "75f58e2f-bdfb-55e3-b5c7-b73478d4d91c",
+          "name": "Register merchant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "b6951527-a9fa-5bd2-bbcc-26539a0259aa",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"returns the new user and a token\", function () {",
+                  "    pm.expect(body.user.id).to.be.a(\"string\");",
+                  "    pm.expect(body.user.role).to.eql(\"USER\");",
+                  "    pm.expect(body.token).to.be.a(\"string\").and.not.empty;",
+                  "});",
+                  "pm.environment.set(\"merchantId\", body.user.id);",
+                  "pm.environment.set(\"merchantEmail\", body.user.email);",
+                  "pm.environment.set(\"merchantToken\", body.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"merchant_{{runId}}\",\n  \"email\": \"merchant_{{runId}}@example.com\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "6c8cc6e1-b823-536b-a0cf-dbb4335b5c19",
+          "name": "Register admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "93fdf5a7-0666-520b-9e12-ef79a2840c88",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"returns the new user and a token\", function () {",
+                  "    pm.expect(body.user.id).to.be.a(\"string\");",
+                  "    pm.expect(body.user.role).to.eql(\"USER\");",
+                  "    pm.expect(body.token).to.be.a(\"string\").and.not.empty;",
+                  "});",
+                  "pm.environment.set(\"adminId\", body.user.id);",
+                  "pm.environment.set(\"adminEmail\", body.user.email);",
+                  "pm.environment.set(\"adminToken\", body.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin_{{runId}}\",\n  \"email\": \"admin_{{runId}}@example.com\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "4242bffb-01b3-58dc-a93a-fa6f5334726a",
+          "name": "Register victim",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "ca9d4785-5a4a-5017-bb66-85d77de65757",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"returns the new user and a token\", function () {",
+                  "    pm.expect(body.user.id).to.be.a(\"string\");",
+                  "    pm.expect(body.user.role).to.eql(\"USER\");",
+                  "    pm.expect(body.token).to.be.a(\"string\").and.not.empty;",
+                  "});",
+                  "pm.environment.set(\"victimId\", body.user.id);",
+                  "pm.environment.set(\"victimEmail\", body.user.email);",
+                  "pm.environment.set(\"victimToken\", body.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"victim_{{runId}}\",\n  \"email\": \"victim_{{runId}}@example.com\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "98c6df85-c844-51d3-a73a-3f463ba104a5",
+      "name": "01 Auth",
+      "description": "Registration, login and the current-user profile (FR-1, NFR-4).",
+      "item": [
+        {
+          "id": "950e5fbf-9137-592d-8b94-d162bc07ff0f",
+          "name": "Register with an existing email",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "62804d9b-4877-54c0-8374-c2f4eef5e1ab",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "pm.test(\"error code is EMAIL_ALREADY_EXISTS\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"EMAIL_ALREADY_EXISTS\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"other_{{runId}}\",\n  \"email\": \"{{payerEmail}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "92eb06fa-06d0-5b4f-920b-267a70da161f",
+          "name": "Register with an existing username",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "d3e7be9f-c29f-56c6-8f21-bfa96a9a0409",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "pm.test(\"error code is USERNAME_ALREADY_EXISTS\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"USERNAME_ALREADY_EXISTS\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"payer_{{runId}}\",\n  \"email\": \"other_{{runId}}@example.com\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "f5d26f53-0955-5555-b3f7-d51b37267f27",
+          "name": "Register with invalid fields",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "5af61f3b-2260-5c20-8300-040f7115cb14",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"error code is VALIDATION_ERROR\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"VALIDATION_ERROR\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"x\",\n  \"email\": \"not-an-email\",\n  \"password\": \"short\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "dd0e33b9-6ed2-5f97-abaf-268c16c6c037",
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "1509015b-b9b3-5c40-840d-11bf435ae37b",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const token = pm.response.json().token;",
+                  "pm.test(\"returns a JWT\", function () {",
+                  "    pm.expect(token.split(\".\")).to.have.lengthOf(3);",
+                  "});",
+                  "pm.environment.set(\"payerToken\", token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{payerEmail}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "d99c5583-e3ae-5080-995a-9534aac41946",
+          "name": "Login with a wrong password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "d1f9e95d-4b2a-517a-be89-1a788207bd4a",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test(\"error code is UNAUTHORIZED\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"UNAUTHORIZED\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{payerEmail}}\",\n  \"password\": \"wrong-password\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "8a19becf-20db-5e00-be6f-20786c33dd4b",
+          "name": "Current user",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "550ae988-8249-5ad5-abfe-74d26044e811",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"is the logged-in user\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.id).to.eql(pm.environment.get(\"payerId\"));",
+                  "    pm.expect(body.role).to.eql(\"USER\");",
+                  "});",
+                  "pm.test(\"echoes the X-Correlation-Id header\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"X-Correlation-Id\")).to.eql(\"postman-\" + pm.environment.get(\"runId\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "postman-{{runId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "781f37ff-6b35-51f3-9a96-36cf8edd2e97",
+          "name": "Current user without a token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "bd6a2e72-6e62-593b-8a46-0322b1639fd3",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"request is rejected (not authenticated)\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([401, 403]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "5623237d-3f0e-57be-acc8-20f1631f545b",
+      "name": "02 Wallet",
+      "description": "Every user gets exactly one zero-balance wallet on registration (FR-2).",
+      "item": [
+        {
+          "id": "9c85dad9-d4be-5321-a3af-16107bf15374",
+          "name": "Payer wallet",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "2e5a68cc-db6b-53e3-a55d-bb4d286c5b54",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"is the payer's zero-balance USD wallet\", function () {",
+                  "    pm.expect(body.userId).to.eql(pm.environment.get(\"payerId\"));",
+                  "    pm.expect(Number(body.balance)).to.eql(0);",
+                  "    pm.expect(body.currency).to.eql(\"USD\");",
+                  "});",
+                  "pm.environment.set(\"payerWalletId\", body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallets/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wallets",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "1656d671-f62b-5b0f-baee-505524a3d8de",
+          "name": "Receiver wallet",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "9dee654b-8690-52af-97f2-3f03cb7ca9c8",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.environment.set(\"receiverWalletId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallets/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wallets",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{receiverToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "3392cfbf-7605-5a48-b7a6-07da19484c65",
+      "name": "03 Top-up",
+      "description": "Top-up through the processor (FR-3) and idempotency (FR-7).\nThe mock processor approves any amount except cents .13 (DECLINED) and .99 (TIMEOUT).",
+      "item": [
+        {
+          "id": "680fa185-d840-5c0f-a2d7-78f8c0616463",
+          "name": "Top up 100.00 (approved)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "f2005275-f377-50c8-8d6d-18823095e56e",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set(\"topupKey\", pm.variables.replaceIn(\"{{$guid}}\"));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "id": "c46ed21d-3f83-54c1-99c4-500f1b601baf",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"credits the wallet\", function () {",
+                  "    pm.expect(body.status).to.eql(\"SUCCESS\");",
+                  "    pm.expect(body.type).to.eql(\"TOP_UP\");",
+                  "    pm.expect(Number(body.walletBalance)).to.eql(100);",
+                  "});",
+                  "pm.environment.set(\"topupTxId\", body.transactionId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{topupKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallets/topup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wallets",
+                "topup"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 100.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "93975534-b4b6-5a32-8ead-1b7e19f9910b",
+          "name": "Replay the same top-up",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "7ce68843-c7a7-5a27-80bc-c96e38795823",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"returns the original transaction without charging again\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.transactionId).to.eql(pm.environment.get(\"topupTxId\"));",
+                  "    pm.expect(Number(body.walletBalance)).to.eql(100);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{topupKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallets/topup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wallets",
+                "topup"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 100.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "b6090bf3-1b28-5fe9-b791-f21c4e959cd6",
+          "name": "Reuse the key for a different amount",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "222b9e62-af91-5257-b001-166e5dd08130",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 422\", function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});",
+                  "pm.test(\"error code is IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{topupKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallets/topup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wallets",
+                "topup"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 55.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "f83e0cd6-77f6-5a1e-aa73-81977da09373",
+          "name": "Top up without Idempotency-Key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "a8bf931a-e3fb-5629-8e9b-609ee0f09faa",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"error code is MISSING_HEADER\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"MISSING_HEADER\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallets/topup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wallets",
+                "topup"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 10.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "203288d7-887f-52ea-b405-07d77b1f4d30",
+          "name": "Top up with more than 4 decimals",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "6551c5c5-9fa0-5b3a-96f8-4242b531939d",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"error code is VALIDATION_ERROR\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"VALIDATION_ERROR\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallets/topup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wallets",
+                "topup"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 10.12345\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "2e6eb08f-0b3d-5685-ad98-c09faa48bbad",
+          "name": "Top up 10.13 (declined)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "d2af2766-6556-5b27-beda-efa04a51e834",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set(\"declinedKey\", pm.variables.replaceIn(\"{{$guid}}\"));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "id": "c4707615-1be1-57d9-844f-5aadbb77c647",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 402\", function () {",
+                  "    pm.response.to.have.status(402);",
+                  "});",
+                  "pm.test(\"error code is PROCESSOR_DECLINED\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"PROCESSOR_DECLINED\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{declinedKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallets/topup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wallets",
+                "topup"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 10.13\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "a722d311-e99a-527b-9f77-a1dcf6b303a9",
+          "name": "Replay the declined top-up",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "57bd4daf-2f85-5f6a-835e-862b55f66508",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "pm.test(\"error code is IDEMPOTENCY_PREVIOUS_ATTEMPT_FAILED\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"IDEMPOTENCY_PREVIOUS_ATTEMPT_FAILED\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{declinedKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallets/topup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wallets",
+                "topup"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 10.13\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "f7ee2828-337e-5aca-91be-0151afe39a81",
+          "name": "Balance unchanged by the declined top-up",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "fdcb628d-fa27-546c-b68a-d1cac8a5255b",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"balance is 100\", function () {",
+                  "    pm.expect(Number(pm.response.json().balance)).to.eql(100);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallets/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wallets",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "1fc63239-72dc-5a52-96fc-82923d766d94",
+      "name": "04 Transfers",
+      "description": "Atomic peer-to-peer transfers (FR-4).",
+      "item": [
+        {
+          "id": "c7aecabe-ec95-5068-b3cd-dce62e4b2828",
+          "name": "Transfer 30.00 to receiver",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "2288fadc-5b4b-5595-9730-52929b11cfeb",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"moves money from payer to receiver\", function () {",
+                  "    pm.expect(body.status).to.eql(\"SUCCESS\");",
+                  "    pm.expect(body.type).to.eql(\"TRANSFER\");",
+                  "    pm.expect(body.sourceWalletId).to.eql(pm.environment.get(\"payerWalletId\"));",
+                  "    pm.expect(body.targetWalletId).to.eql(pm.environment.get(\"receiverWalletId\"));",
+                  "});",
+                  "pm.environment.set(\"transferTxId\", body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transfers"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"toUserId\": \"{{receiverId}}\",\n  \"amount\": 30.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "b7743785-093d-5b90-97a5-8bd04c07795e",
+          "name": "Transfer more than the balance",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "a496c51e-0136-5bac-915f-edfe85ff2357",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 422\", function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});",
+                  "pm.test(\"error code is INSUFFICIENT_FUNDS\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"INSUFFICIENT_FUNDS\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transfers"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"toUserId\": \"{{receiverId}}\",\n  \"amount\": 1000.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "eaeed81f-e258-5986-b24d-3972680f5924",
+          "name": "Transfer to yourself",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "bab39726-f1a8-5406-9820-2825f431653c",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"error code is BAD_REQUEST\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"BAD_REQUEST\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transfers"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"toUserId\": \"{{payerId}}\",\n  \"amount\": 1.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "ef520873-c26a-5c5f-bada-7aa4e8bd3385",
+          "name": "Transfer to an unknown user",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "f1e55788-74e4-589d-8a44-72ec61b65046",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test(\"error code is NOT_FOUND\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"NOT_FOUND\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transfers"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"toUserId\": \"{{$guid}}\",\n  \"amount\": 1.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "d449ded8-8aad-5255-a642-1cc00cb968b5",
+          "name": "Payer balance after transfer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "06090aa5-cf03-5b11-aa5e-db9e391e44e0",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"balance is 70\", function () {",
+                  "    pm.expect(Number(pm.response.json().balance)).to.eql(70);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallets/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wallets",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "1236b118-1a07-533d-81bc-d8161432a1d6",
+          "name": "Receiver balance after transfer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "a023cad6-f70c-5756-b557-512a6528dbd5",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"balance is 30\", function () {",
+                  "    pm.expect(Number(pm.response.json().balance)).to.eql(30);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallets/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wallets",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{receiverToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "9ff3e4c2-69a3-5d1e-b8eb-1c22efb7c062",
+      "name": "05 Payments",
+      "description": "Merchant payments through the processor (FR-5).",
+      "item": [
+        {
+          "id": "0e32d763-1906-5dee-9cfc-62fb563a4d31",
+          "name": "Pay a non-merchant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "54a90905-701f-53ae-8d1a-6a96dce0a2c2",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"error code is BAD_REQUEST\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"BAD_REQUEST\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchantId\": \"{{receiverId}}\",\n  \"amount\": 5.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "6ed816bc-bb43-5118-8e42-b6659d8f29a5",
+          "name": "Pay merchant 20.00 (approved)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "36fb1cb8-bcb7-5e1d-bbe0-60a206a7889e",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"debits the payer\", function () {",
+                  "    pm.expect(body.status).to.eql(\"SUCCESS\");",
+                  "    pm.expect(body.type).to.eql(\"PAYMENT\");",
+                  "    pm.expect(Number(body.walletBalance)).to.eql(50);",
+                  "});",
+                  "pm.environment.set(\"paymentTxId\", body.transactionId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchantId\": \"{{merchantId}}\",\n  \"amount\": 20.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "785a9ff1-1894-5a22-adff-9d3b3d613319",
+          "name": "Pay more than the balance",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "e47ec66f-4bc2-588a-b654-a2625e6b987e",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 422\", function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});",
+                  "pm.test(\"error code is INSUFFICIENT_FUNDS\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"INSUFFICIENT_FUNDS\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchantId\": \"{{merchantId}}\",\n  \"amount\": 500.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "ffcafa10-bcab-59a4-801a-bba78d599665",
+          "name": "Pay merchant 5.13 (declined)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "964f12e3-a054-5343-92ca-e7acb7eadcd8",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 402\", function () {",
+                  "    pm.response.to.have.status(402);",
+                  "});",
+                  "pm.test(\"error code is PROCESSOR_DECLINED\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"PROCESSOR_DECLINED\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "payments"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchantId\": \"{{merchantId}}\",\n  \"amount\": 5.13\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "0b4ffb82-d49a-51cb-97e2-a2947163d3e1",
+          "name": "Merchant balance after payment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "a020e7f6-1c8b-5612-9684-6292ac279399",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"balance is 20\", function () {",
+                  "    pm.expect(Number(pm.response.json().balance)).to.eql(20);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallets/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wallets",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{merchantToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "517986fb-6501-50f7-acfd-9cd1250742f9",
+          "name": "Payer balance unchanged by the declined payment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "6fb19f1f-0b79-55fe-8999-4cc5c29eb509",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"balance is 50\", function () {",
+                  "    pm.expect(Number(pm.response.json().balance)).to.eql(50);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallets/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wallets",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "721b5a7f-d111-5085-8421-cb101a741ed4",
+      "name": "06 Transactions",
+      "description": "History, filters, pagination and access control (FR-6).",
+      "item": [
+        {
+          "id": "d008751d-d31e-540b-a820-112e12cc6c80",
+          "name": "List payer transactions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "babd514a-a4cf-552a-b60d-c1b7eb04f8cd",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"lists all 5 payer transactions, newest first\", function () {",
+                  "    // top-up, declined top-up, transfer, payment, declined payment",
+                  "    pm.expect(body.totalElements).to.eql(5);",
+                  "    const times = body.content.map(t => Date.parse(t.createdAt));",
+                  "    for (let i = 1; i < times.length; i++) {",
+                  "        pm.expect(times[i - 1]).to.be.at.least(times[i]);",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "34b1fe92-0b02-5c73-a024-d30e1ce54152",
+          "name": "Filter by type TOP_UP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "1fe28874-0028-5084-846d-48e99440a664",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"returns only the 2 top-ups\", function () {",
+                  "    pm.expect(body.totalElements).to.eql(2);",
+                  "    body.content.forEach(t => pm.expect(t.type).to.eql(\"TOP_UP\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions?type=TOP_UP",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "TOP_UP"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "fc4b1ac2-ebe4-5bd0-938e-318f3065a43c",
+          "name": "Paginate with size 2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "e4898017-009d-564d-ad84-6c4816ac790f",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"returns pagination metadata\", function () {",
+                  "    pm.expect(body.content).to.have.lengthOf(2);",
+                  "    pm.expect(body.size).to.eql(2);",
+                  "    pm.expect(body.totalPages).to.eql(3);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions?page=0&size=2",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "2"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "80617145-dde8-5a96-ac60-74d16a4e01b4",
+          "name": "Get own transaction",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "9d177ead-4138-5166-a99e-ffb2acfcba07",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"is the transfer\", function () {",
+                  "    pm.expect(pm.response.json().id).to.eql(pm.environment.get(\"transferTxId\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/{{transferTxId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions",
+                "{{transferTxId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "d22c23cd-51b7-5962-aa08-a72db6b8f35f",
+          "name": "Get someone else's transaction",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "625f498d-73ca-5a49-a270-7b4a70f3cb79",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "pm.test(\"error code is FORBIDDEN\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"FORBIDDEN\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/{{topupTxId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions",
+                "{{topupTxId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{receiverToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "265160a4-5e83-51b5-91fd-62bc3f4dfdb0",
+          "name": "Get an unknown transaction",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "e458f6bd-801c-58b1-9eac-bafb98f03b81",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test(\"error code is NOT_FOUND\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"NOT_FOUND\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/{{$guid}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions",
+                "{{$guid}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "7bcae06f-29c8-508c-9fda-1100376cf9ac",
+      "name": "07 Admin",
+      "description": "Admin user management and reversal (FR-8). Needs the ADMIN role set after 00 Setup.",
+      "item": [
+        {
+          "id": "4a8c96a4-07d8-5566-89a9-78e420e8be4f",
+          "name": "List users as a normal user",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "bb7d9b63-5ec8-54a7-831a-f5eed3dabcc2",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "5d0e6d83-9d37-5be4-ae75-da55339f7d9c",
+          "name": "List users",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "98b91e86-ac1b-5d27-8180-8b189209571d",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"returns a page of users\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.content).to.be.an(\"array\").that.is.not.empty;",
+                  "    pm.expect(body.size).to.eql(5);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users?page=0&size=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "5"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "c2f955f1-2fd1-5d49-99b3-cbf52ce9cbb9",
+          "name": "Reverse the transfer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "03c47d51-2163-539f-83db-0a018510ee9b",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"creates a successful REVERSAL\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.type).to.eql(\"REVERSAL\");",
+                  "    pm.expect(body.status).to.eql(\"SUCCESS\");",
+                  "    pm.expect(Number(body.amount)).to.eql(30);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/transactions/{{transferTxId}}/reverse",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "transactions",
+                "{{transferTxId}}",
+                "reverse"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "7ede0a14-b766-5820-822b-e4c064a4e495",
+          "name": "Reverse the transfer again",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "f57ab360-32b7-5a80-9e2b-dea883a40402",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "pm.test(\"error code is INVALID_STATE\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"INVALID_STATE\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/transactions/{{transferTxId}}/reverse",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "transactions",
+                "{{transferTxId}}",
+                "reverse"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "c4f7de7d-231a-5b52-aace-4505d0baf539",
+          "name": "Original transfer is REVERSED",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "f3865be9-9790-5659-b237-a00cb1b811b2",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"status is REVERSED\", function () {",
+                  "    pm.expect(pm.response.json().status).to.eql(\"REVERSED\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/{{transferTxId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "transactions",
+                "{{transferTxId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "e2d16f6f-b7ae-5d54-a8b3-b73e503f72a6",
+          "name": "Payer balance restored by the reversal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "da4601d1-2c0d-56ae-ab6a-09d03214bf7c",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"balance is 80\", function () {",
+                  "    pm.expect(Number(pm.response.json().balance)).to.eql(80);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallets/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wallets",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "396ad4e7-5824-5265-8567-8a0c5b630c29",
+          "name": "Receiver balance restored by the reversal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "c60b7ca9-2034-5bb3-9028-921d871fafed",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"balance is 0\", function () {",
+                  "    pm.expect(Number(pm.response.json().balance)).to.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallets/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wallets",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{receiverToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "f86eedb2-794f-5447-8b14-61cf31c8ea28",
+          "name": "Reverse an unknown transaction",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "e3a12863-fef0-5fed-8849-56c457d49691",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test(\"error code is NOT_FOUND\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"NOT_FOUND\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/transactions/{{$guid}}/reverse",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "transactions",
+                "{{$guid}}",
+                "reverse"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "521f38cb-61b7-5c4e-8423-7d6460dae1ae",
+          "name": "Disable a user",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "0fcfbfb0-5d9c-57d6-839a-f5bc398f3c5e",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"user is disabled\", function () {",
+                  "    pm.expect(pm.response.json().enabled).to.eql(false);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/{{victimId}}/disable",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "{{victimId}}",
+                "disable"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "065e2610-2e4b-50df-87d9-6f6e38417783",
+          "name": "Disabled user's token is rejected",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "4d111c53-4fc2-59d7-82ca-caae0af6cc92",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"request is rejected (not authenticated)\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([401, 403]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{victimToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "472aadd5-b718-5fb4-9c7e-3678bb0a180d",
+          "name": "Enable the user again",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "050fbc40-fe66-5c0d-a0ef-80882ee700a0",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"user is enabled\", function () {",
+                  "    pm.expect(pm.response.json().enabled).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/{{victimId}}/disable",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "{{victimId}}",
+                "disable"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "d8a5587b-7e4c-5a29-b771-c3037d705f4b",
+          "name": "Delete a user with transaction history",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "96052973-91a7-503a-a806-e536f812d6f7",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "pm.test(\"error code is INVALID_STATE\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"INVALID_STATE\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/{{payerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "{{payerId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "acc28120-eb08-5781-841d-9fa87cd80e2f",
+          "name": "Delete a user without history",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "c899648d-30d4-557f-a7ff-92434aca0c3d",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 204\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/{{victimId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "{{victimId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "fd3aa951-b37c-5cec-887c-ca47055d910f",
+          "name": "Delete the same user again",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "46ca8067-b27a-5f6c-a5a6-daba6a53b4a1",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test(\"error code is NOT_FOUND\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"NOT_FOUND\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/{{victimId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "{{victimId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "871a03cf-81da-58fe-b6b5-0604e29d07f6",
+      "name": "08 Processor failures",
+      "description": "Keep this folder last: the timeout counts as a failure for the processor\ncircuit breaker, which opens once at least 50% of the last calls (minimum 5) failed.",
+      "item": [
+        {
+          "id": "3dd5bde5-b3db-544f-9e9a-f5736e8639a9",
+          "name": "Top up 10.99 (processor timeout)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "bf1adabc-e5d9-51ff-8205-c6f223d61c1f",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 504\", function () {",
+                  "    pm.response.to.have.status(504);",
+                  "});",
+                  "pm.test(\"error code is PROCESSOR_TIMEOUT\", function () {",
+                  "    pm.expect(pm.response.json().error).to.eql(\"PROCESSOR_TIMEOUT\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallets/topup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wallets",
+                "topup"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 10.99\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "id": "e9b4e8d4-c95e-595e-a608-89c0b5042843",
+          "name": "Balance unchanged by the timeout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "4223ff08-8a1c-5fcb-a3c9-fc948de5e935",
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"balance is 80\", function () {",
+                  "    pm.expect(Number(pm.response.json().balance)).to.eql(80);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/wallets/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wallets",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{payerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
