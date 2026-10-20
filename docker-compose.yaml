@@ -3,6 +3,9 @@
 #   APP_PORT            host port for the app (default 8080)
 #   PROCESSOR_BASE_URL  payment processor (default: SoapUI mock on the host, port 8072)
 #   FINTHOS_JWT_SECRET  overrides the dev JWT secret
+#
+# With the bundled mock processor instead of SoapUI:
+#   PROCESSOR_BASE_URL=http://mock-processor:18072 docker compose --profile mock up --build
 name: finthos
 
 include:
@@ -26,3 +29,12 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"   # lets the container reach SoapUI on the host (Linux too)
 
+  mock-processor:
+    image: node:20-alpine
+    container_name: finthos-mock-processor
+    profiles: ["mock"]
+    command: ["node", "/mock/mock-processor.js", "18072"]
+    volumes:
+      - ./postman/mock-processor.js:/mock/mock-processor.js:ro
+    ports:
+      - "18072:18072"
