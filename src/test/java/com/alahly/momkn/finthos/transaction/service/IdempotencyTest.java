@@ -46,6 +46,7 @@ class IdempotencyTest {
     private UUID senderId;
     private UUID receiverId;
     private String senderToken;
+    private String receiverToken;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -70,6 +71,7 @@ class IdempotencyTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         receiverId = UUID.fromString(objectMapper.readTree(receiverResult.getResponse().getContentAsString()).get("user").get("id").asText());
+        receiverToken = objectMapper.readTree(receiverResult.getResponse().getContentAsString()).get("token").asText();
 
         UUID senderWalletId = walletRepository.findByUserId(senderId).orElseThrow().getId();
         jdbcTemplate.update("UPDATE wallets SET balance = balance + 100.00 WHERE id = ?", senderWalletId);
@@ -105,5 +107,55 @@ class IdempotencyTest {
 
         Wallet senderAfter = walletRepository.findByUserId(senderId).orElseThrow();
         assertThat(senderAfter.getBalance()).isEqualByComparingTo(new BigDecimal("90.00"));
+    }
+
+    @Test
+    void sameKey_differentAmount_returns422() throws Exception {
+        String idemKey = UUID.randomUUID().toString();
+
+        mockMvc.perform(post("/api/transfers")
+                        .header("Authorization", "Bearer " + senderToken)
+                        .header("Idempotency-Key", idemKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TransferRequest(receiverId, new BigDecimal("10.00")))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/transfers")
+                        .header("Authorization", "Bearer " + senderToken)
+                        .header("Idempotency-Key", idemKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TransferRequest(receiverId, new BigDecimal("20.00")))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error").value("IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST"));
+
+        assertThat(walletRepository.findByUserId(senderId).orElseThrow().getBalance())
+                .isEqualByComparingTo(new BigDecimal("90.00"));
+    }
+
+    @Test
+    void sameKey_differentUsers_doesNotLeakOtherUsersTransaction() throws Exception {
+        String idemKey = UUID.randomUUID().toString();
+
+        MvcResult senders = mockMvc.perform(post("/api/transfers")
+                        .header("Authorization", "Bearer " + senderToken)
+                        .header("Idempotency-Key", idemKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TransferRequest(receiverId, new BigDecimal("10.00")))))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        MvcResult receivers = mockMvc.perform(post("/api/transfers")
+                        .header("Authorization", "Bearer " + receiverToken)
+                        .header("Idempotency-Key", idemKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TransferRequest(senderId, new BigDecimal("5.00")))))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String sendersId = objectMapper.readTree(senders.getResponse().getContentAsString()).get("id").asText();
+        String receiversId = objectMapper.readTree(receivers.getResponse().getContentAsString()).get("id").asText();
+        assertThat(receiversId).isNotEqualTo(sendersId);
+        assertThat(walletRepository.findByUserId(senderId).orElseThrow().getBalance())
+                .isEqualByComparingTo(new BigDecimal("95.00"));
     }
 }

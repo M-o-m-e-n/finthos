@@ -156,6 +156,29 @@ class TopUpApiTest {
     }
 
     @Test
+    void topUp_replayAfterFailure_returns409() throws Exception {
+        when(processorClient.authorizeWithCircuitBreaker(any(UUID.class), any(ProcessorRequest.class)))
+                .thenThrow(new ProcessorDeclinedException("ref"));
+        String key = UUID.randomUUID().toString();
+        String body = objectMapper.writeValueAsString(new TopUpRequest(new BigDecimal("50.00")));
+
+        mockMvc.perform(post("/api/wallets/topup")
+                        .header("Authorization", "Bearer " + userToken)
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isPaymentRequired());
+
+        mockMvc.perform(post("/api/wallets/topup")
+                        .header("Authorization", "Bearer " + userToken)
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("IDEMPOTENCY_PREVIOUS_ATTEMPT_FAILED"));
+    }
+
+    @Test
     void topUp_missingIdempotencyKey_returns400() throws Exception {
         mockMvc.perform(post("/api/wallets/topup")
                         .header("Authorization", "Bearer " + userToken)

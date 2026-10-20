@@ -5,6 +5,7 @@ import com.alahly.momkn.finthos.integration.client.ProcessorRequest;
 import com.alahly.momkn.finthos.transaction.domain.Transaction;
 import com.alahly.momkn.finthos.transaction.domain.TxType;
 import com.alahly.momkn.finthos.transaction.service.IdempotencyService;
+import com.alahly.momkn.finthos.transaction.service.IdempotentRequest;
 import com.alahly.momkn.finthos.transaction.service.TransactionService;
 import com.alahly.momkn.finthos.user.service.UserService;
 import com.alahly.momkn.finthos.wallet.domain.Wallet;
@@ -16,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionOperations;
 
 import java.math.BigDecimal;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -42,25 +42,20 @@ public class PaymentService {
     private final TransactionOperations transactionOperations;
 
     public Transaction topUp(UUID userId, BigDecimal amount, String idempotencyKey) {
-        Optional<Transaction> existing = idempotencyService.findExisting(idempotencyKey);
-        if (existing.isPresent()) {
-            return existing.get();
-        }
-
         Wallet wallet = walletService.getByUserId(userId);
 
-        Transaction tx = transactionService.create(
-                TxType.TOP_UP, amount, idempotencyKey, null, wallet.getId());
+        return idempotencyService.execute(
+                new IdempotentRequest(userId, idempotencyKey, TxType.TOP_UP, amount, wallet.getId()),
+                scopedKey -> {
+                    Transaction tx = transactionService.create(
+                            TxType.TOP_UP, amount, scopedKey, null, wallet.getId());
 
-        authorize(tx, wallet.getCurrency());
-        return settle(tx, () -> walletService.credit(wallet.getId(), amount, tx.getId()));
+                    authorize(tx, wallet.getCurrency());
+                    return settle(tx, () -> walletService.credit(wallet.getId(), amount, tx.getId()));
+                });
     }
 
     public Transaction payMerchant(UUID userId, UUID merchantId, BigDecimal amount, String idempotencyKey) {
-        Optional<Transaction> existing = idempotencyService.findExisting(idempotencyKey);
-        if (existing.isPresent()) {
-            return existing.get();
-        }
         if (userId.equals(merchantId)) {
             throw new IllegalArgumentException("Cannot pay yourself");
         }
@@ -69,18 +64,22 @@ public class PaymentService {
         Wallet senderWallet = walletService.getByUserId(userId);
         Wallet merchantWallet = walletService.getByUserId(merchantId);
 
-        // Fail fast before asking the processor to authorize money the user doesn't have.
-        senderWallet.ensureCanDebit(amount);
+        return idempotencyService.execute(
+                new IdempotentRequest(userId, idempotencyKey, TxType.PAYMENT, amount, merchantWallet.getId()),
+                scopedKey -> {
+                    // Fail fast before asking the processor to authorize money the user doesn't have.
+                    senderWallet.ensureCanDebit(amount);
 
-        Transaction tx = transactionService.create(
-                TxType.PAYMENT, amount, idempotencyKey,
-                senderWallet.getId(), merchantWallet.getId());
+                    Transaction tx = transactionService.create(
+                            TxType.PAYMENT, amount, scopedKey,
+                            senderWallet.getId(), merchantWallet.getId());
 
-        authorize(tx, senderWallet.getCurrency());
-        return settle(tx, () -> {
-            walletService.debit(senderWallet.getId(), amount, tx.getId());
-            walletService.credit(merchantWallet.getId(), amount, tx.getId());
-        });
+                    authorize(tx, senderWallet.getCurrency());
+                    return settle(tx, () -> {
+                        walletService.debit(senderWallet.getId(), amount, tx.getId());
+                        walletService.credit(merchantWallet.getId(), amount, tx.getId());
+                    });
+                });
     }
 
     private void authorize(Transaction tx, String currency) {
