@@ -2,13 +2,12 @@ package com.alahly.momkn.finthos.admin.service;
 
 import com.alahly.momkn.finthos.admin.web.dto.AdminUserPage;
 import com.alahly.momkn.finthos.admin.web.dto.AdminUserResponse;
-import com.alahly.momkn.finthos.common.error.EntityNotFoundException;
 import com.alahly.momkn.finthos.transaction.domain.Transaction;
 import com.alahly.momkn.finthos.transaction.domain.TxStatus;
 import com.alahly.momkn.finthos.transaction.domain.TxType;
 import com.alahly.momkn.finthos.transaction.service.TransactionService;
 import com.alahly.momkn.finthos.user.domain.User;
-import com.alahly.momkn.finthos.user.repository.UserRepository;
+import com.alahly.momkn.finthos.user.service.UserService;
 import com.alahly.momkn.finthos.wallet.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -16,7 +15,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,12 +22,12 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AdminService {
 
-    private final UserRepository userRepository;
+    private final UserService userService;
     private final TransactionService transactionService;
     private final WalletService walletService;
 
     public AdminUserPage listUsers(int page, int size) {
-        Page<User> userPage = userRepository.findAll(PageRequest.of(page, size));
+        Page<User> userPage = userService.listUsers(PageRequest.of(page, size));
         List<AdminUserResponse> content = userPage.getContent().stream()
                 .map(this::toAdminUser)
                 .toList();
@@ -71,22 +69,14 @@ public class AdminService {
         return reversal;
     }
 
-    @Transactional
     public AdminUserResponse toggleUserEnabled(UUID userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new EntityNotFoundException("User not found: " + userId));
-        user.setEnabled(!user.isEnabled());
-        user.setUpdatedAt(Instant.now());
-        userRepository.save(user);
-        return toAdminUser(user);
+        return toAdminUser(userService.toggleEnabled(userId));
     }
 
     @Transactional
     public void deleteUser(UUID userId) {
-        if (!userRepository.existsById(userId)) {
-            throw new EntityNotFoundException("User not found: " + userId);
-        }
-        userRepository.deleteById(userId);
+        userService.getById(userId);
+        userService.delete(userId);
     }
 
     private AdminUserResponse toAdminUser(User user) {
