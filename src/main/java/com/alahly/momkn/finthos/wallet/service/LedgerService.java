@@ -1,7 +1,7 @@
-package com.alahly.momkn.finthos.transaction.service;
+package com.alahly.momkn.finthos.wallet.service;
 
-import com.alahly.momkn.finthos.transaction.domain.LedgerEntry;
-import com.alahly.momkn.finthos.transaction.repository.LedgerRepository;
+import com.alahly.momkn.finthos.wallet.domain.LedgerEntry;
+import com.alahly.momkn.finthos.wallet.repository.LedgerRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -12,7 +12,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class LedgerService {
+class LedgerService {
 
     private final LedgerRepository ledgerRepository;
 

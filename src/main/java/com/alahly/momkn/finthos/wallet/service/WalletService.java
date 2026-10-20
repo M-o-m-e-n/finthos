@@ -1,6 +1,5 @@
 package com.alahly.momkn.finthos.wallet.service;
 
-import com.alahly.momkn.finthos.transaction.service.LedgerService;
 import com.alahly.momkn.finthos.common.error.EntityNotFoundException;
 import com.alahly.momkn.finthos.wallet.domain.Wallet;
 import com.alahly.momkn.finthos.wallet.repository.WalletRepository;

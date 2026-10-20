@@ -1,9 +1,9 @@
 package com.alahly.momkn.finthos.wallet.service;
 
-import com.alahly.momkn.finthos.transaction.domain.LedgerEntry;
-import com.alahly.momkn.finthos.transaction.repository.LedgerRepository;
 import com.alahly.momkn.finthos.transaction.web.dto.TransferRequest;
 import com.alahly.momkn.finthos.user.web.dto.RegisterRequest;
+import com.alahly.momkn.finthos.wallet.domain.LedgerEntry;
+import com.alahly.momkn.finthos.wallet.repository.LedgerRepository;
 import com.alahly.momkn.finthos.wallet.repository.WalletRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;

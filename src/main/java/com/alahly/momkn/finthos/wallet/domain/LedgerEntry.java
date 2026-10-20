@@ -1,4 +1,4 @@
-package com.alahly.momkn.finthos.transaction.domain;
+package com.alahly.momkn.finthos.wallet.domain;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
