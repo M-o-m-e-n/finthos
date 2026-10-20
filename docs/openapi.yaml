@@ -25,11 +25,6 @@ tags:
     description: Transaction history (FR-6)
   - name: Admin
     description: Admin user list and reversal (FR-8)
-  - name: Admin Observability
-    description: >
-      Optional endpoints — only relevant if you built the extended audit
-      schema (processor_authorizations, auth_audit_log). Not required by
-      the base SRS/LLD.
 
 security:
   - bearerAuth: []
@@ -159,6 +154,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ProcessorUnavailable"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
+        "422":
+          $ref: "#/components/responses/IdempotencyKeyReused"
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -171,6 +172,10 @@ paths:
     post:
       tags: [Transfers]
       summary: Transfer funds to another user (atomic, no external processor)
+      description: >
+        Debits the sender, credits the receiver, writes both ledger entries and
+        marks the transaction SUCCESS in one DB transaction; any failure rolls all
+        of it back (FR-4). Transferring to yourself returns 400.
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
@@ -187,7 +192,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/TxResult"
         "422":
-          description: Insufficient funds
+          description: >
+            Insufficient funds (`INSUFFICIENT_FUNDS`), or the Idempotency-Key was
+            already used for a different request (`IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST`).
           content:
             application/json:
               schema:
@@ -198,6 +205,14 @@ paths:
                 error: "INSUFFICIENT_FUNDS"
                 message: "Sender balance is lower than the transfer amount."
                 correlationId: "b3f1c2..."
+        "409":
+          description: >
+            Idempotency conflict (see `IdempotencyConflict`), or the wallet was
+            modified concurrently (`CONCURRENT_MODIFICATION`) — safe to retry with the same key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -216,7 +231,9 @@ paths:
     post:
       tags: [Payments]
       summary: Pay a registered merchant
-      description: Authorizes via the external processor before moving funds (FR-5).
+      description: >
+        The recipient must have role MERCHANT. The payer's balance is checked
+        before the processor is called; funds move only after APPROVED (FR-5).
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
@@ -244,8 +261,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          $ref: "#/components/responses/ProcessorUnavailable"
+        "422":
+          description: >
+            Insufficient funds (`INSUFFICIENT_FUNDS`, processor not called), or the
+            Idempotency-Key was already used for a different request
+            (`IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
         "400":
-          $ref: "#/components/responses/ValidationError"
+          description: Validation error, recipient is not a merchant, or paying yourself
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -380,8 +414,10 @@ paths:
       tags: [Admin]
       summary: Reverse a transaction (admin only)
       description: >
-        Creates a compensating REVERSAL transaction and ledger entries,
-        restoring balances (FR-8).
+        Creates a compensating REVERSAL transaction (with `reversedTransactionId`
+        and the reversing admin recorded) plus ledger entries, restores balances,
+        and marks the original REVERSED (FR-8). Only SUCCESS, non-REVERSAL
+        transactions can be reversed, and each at most once.
       parameters:
         - $ref: "#/components/parameters/TransactionId"
       responses:
@@ -398,7 +434,13 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: Transaction already reversed or not in a reversible state
+          description: Transaction already reversed or not in a reversible state (`INVALID_STATE`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: The original recipient no longer holds enough funds to reverse (`INSUFFICIENT_FUNDS`)
           content:
             application/json:
               schema:
@@ -436,7 +478,10 @@ paths:
     delete:
       tags: [Admin]
       summary: Delete a user (admin only)
-      description: Permanently deletes a user account. Admin users cannot be deleted.
+      description: >
+        Permanently deletes a user account and its wallet. Only allowed while the
+        user has no transaction history — money history is never deleted; disable
+        the account instead. Admin users cannot be deleted.
       parameters:
         - name: id
           in: path
@@ -453,6 +498,12 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          description: User has transaction history and cannot be deleted (`INVALID_STATE`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
 components:
   securitySchemes:
@@ -466,9 +517,16 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      description: Client-supplied key; a repeated request with the same key returns the original result (FR-7).
+      description: >
+        Client-supplied key, scoped to the authenticated user (FR-7). Missing →
+        400 `MISSING_HEADER`. Replaying a key whose request succeeded returns the
+        original result without moving money again. Replaying it with a different
+        type/amount/recipient → 422; while the first request is still running, or
+        after it failed → 409 (use a new key to retry a failed request).
       schema:
         type: string
+        minLength: 1
+        maxLength: 200
         example: "6c9b7e2a-6b7a-4b41-9f7e-2b6a7e2a6b7a"
 
     TransactionId:
@@ -502,7 +560,37 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
 
     ValidationError:
-      description: Request failed validation
+      description: >
+        Request failed validation (`VALIDATION_ERROR`), a required header is
+        missing (`MISSING_HEADER`), or the request is otherwise invalid (`BAD_REQUEST`)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    IdempotencyConflict:
+      description: >
+        A request with this Idempotency-Key is still being processed
+        (`IDEMPOTENCY_REQUEST_IN_PROGRESS`), or a previous request with it failed
+        (`IDEMPOTENCY_PREVIOUS_ATTEMPT_FAILED`)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    IdempotencyKeyReused:
+      description: >
+        The Idempotency-Key was already used for a different request
+        (`IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST`)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    ProcessorUnavailable:
+      description: >
+        The processor circuit breaker is open or the processor failed unexpectedly
+        (`PROCESSOR_UNAVAILABLE`); the transaction is FAILED and balances are unchanged
       content:
         application/json:
           schema:
@@ -599,6 +687,8 @@ components:
           type: number
           format: double
           minimum: 0.01
+          multipleOf: 0.0001
+          description: At most 15 integer digits and 4 decimal places
           example: 50.00
 
     TransferRequest:
@@ -612,6 +702,8 @@ components:
           type: number
           format: double
           minimum: 0.01
+          multipleOf: 0.0001
+          description: At most 15 integer digits and 4 decimal places
 
     PaymentRequest:
       type: object
@@ -624,6 +716,8 @@ components:
           type: number
           format: double
           minimum: 0.01
+          multipleOf: 0.0001
+          description: At most 15 integer digits and 4 decimal places
 
     Transaction:
       type: object
@@ -709,6 +803,14 @@ components:
           type: integer
         error:
           type: string
+          description: >
+            Machine-readable code, e.g. VALIDATION_ERROR, MISSING_HEADER, BAD_REQUEST,
+            UNAUTHORIZED, FORBIDDEN, NOT_FOUND, EMAIL_ALREADY_EXISTS,
+            USERNAME_ALREADY_EXISTS, INSUFFICIENT_FUNDS, PROCESSOR_DECLINED,
+            PROCESSOR_TIMEOUT, PROCESSOR_UNAVAILABLE, INVALID_STATE,
+            CONCURRENT_MODIFICATION, CONFLICT, IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST,
+            IDEMPOTENCY_REQUEST_IN_PROGRESS, IDEMPOTENCY_PREVIOUS_ATTEMPT_FAILED, INTERNAL_ERROR.
+            5xx responses never include internal exception details.
           example: "INSUFFICIENT_FUNDS"
         message:
           type: string
