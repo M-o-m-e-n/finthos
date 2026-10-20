@@ -29,6 +29,9 @@ PostgreSQL, Flyway. Full specs live in `docs/` — read them on demand, not all 
 - `ModularityTest` fails the build if a module breaks the rules below, and writes
   module diagrams to `target/spring-modulith-docs`.
 - Local run: `docker compose up -d` then `./mvnw spring-boot:run` (Flyway migrates on startup).
+- API tests: `cd postman && npm ci && npm test` runs the Postman collection with Newman against a
+  freshly started app + mock processor (see `postman/README.md`). When an endpoint, status code or
+  error code changes, update `postman/finthos.postman_collection.json` in the same change.
 
 ## Modules (Spring Modulith)
 Top-level packages under `com.alahly.momkn.finthos` are modules. Dependency graph (no cycles):
