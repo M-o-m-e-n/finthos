@@ -15,6 +15,10 @@ public interface TransactionRepository extends CrudRepository<Transaction, UUID>
 
     Optional<Transaction> findByIdempotencyKey(String idempotencyKey);
 
+    @Query("SELECT EXISTS(SELECT 1 FROM transactions " +
+           "WHERE source_wallet_id = :walletId OR target_wallet_id = :walletId)")
+    boolean existsForWallet(@Param("walletId") UUID walletId);
+
     @Query("SELECT * FROM transactions " +
            "WHERE (source_wallet_id = :walletId OR target_wallet_id = :walletId) " +
            "AND type = COALESCE(:type, type) " +

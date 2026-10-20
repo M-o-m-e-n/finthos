@@ -260,6 +260,10 @@ class AdminApiTest {
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("INVALID_STATE"));
+
+        mockMvc.perform(delete("/api/admin/users/" + senderId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isConflict());
     }
 
     private JsonNode register(String name) throws Exception {

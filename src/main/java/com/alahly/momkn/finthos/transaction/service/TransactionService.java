@@ -62,6 +62,10 @@ public class TransactionService {
         return tx;
     }
 
+    public boolean hasTransactions(UUID walletId) {
+        return transactionRepository.existsForWallet(walletId);
+    }
+
     public Page<Transaction> listTransactions(UUID walletId, TxType type, Instant fromDate, Instant toDate,
                                                Pageable pageable) {
         String typeStr = (type != null) ? type.name() : null;

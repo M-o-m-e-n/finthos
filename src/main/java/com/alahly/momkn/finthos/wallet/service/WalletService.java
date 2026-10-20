@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -21,6 +22,10 @@ public class WalletService {
     public Wallet getByUserId(UUID userId) {
         return walletRepository.findByUserId(userId)
                 .orElseThrow(() -> new EntityNotFoundException("No wallet for user: " + userId));
+    }
+
+    public Optional<Wallet> findByUserId(UUID userId) {
+        return walletRepository.findByUserId(userId);
     }
 
     public Wallet createForUser(UUID userId, String currency) {
