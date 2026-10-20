@@ -1,7 +1,7 @@
 package com.alahly.momkn.finthos.user.web;
 
 import com.alahly.momkn.finthos.user.domain.User;
-import com.alahly.momkn.finthos.user.repository.UserRepository;
+import com.alahly.momkn.finthos.user.service.UserService;
 import com.alahly.momkn.finthos.user.web.dto.UserProfileResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -16,12 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class UserController {
 
-    private final UserRepository userRepository;
+    private final UserService userService;
 
     @GetMapping("/me")
     public ResponseEntity<UserProfileResponse> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
-        User user = userRepository.findByEmail(userDetails.getUsername())
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        User user = userService.getByEmail(userDetails.getUsername());
 
         UserProfileResponse response = new UserProfileResponse(
                 user.getId(),

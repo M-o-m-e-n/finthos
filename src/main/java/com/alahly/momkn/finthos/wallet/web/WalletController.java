@@ -1,7 +1,7 @@
 package com.alahly.momkn.finthos.wallet.web;
 
 import com.alahly.momkn.finthos.user.domain.User;
-import com.alahly.momkn.finthos.user.repository.UserRepository;
+import com.alahly.momkn.finthos.user.service.UserService;
 import com.alahly.momkn.finthos.wallet.mapper.WalletMapper;
 import com.alahly.momkn.finthos.wallet.service.WalletService;
 import com.alahly.momkn.finthos.wallet.web.dto.WalletResponse;
@@ -19,14 +19,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class WalletController {
 
     private final WalletService walletService;
-    private final UserRepository userRepository;
+    private final UserService userService;
     private final WalletMapper walletMapper;
 
     @GetMapping("/me")
     public ResponseEntity<WalletResponse> getMyWallet(Authentication authentication) {
         UserDetails principal = (UserDetails) authentication.getPrincipal();
-        User user = userRepository.findByEmail(principal.getUsername())
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        User user = userService.getByEmail(principal.getUsername());
         var wallet = walletService.getByUserId(user.getId());
         return ResponseEntity.ok(walletMapper.toResponse(wallet));
     }

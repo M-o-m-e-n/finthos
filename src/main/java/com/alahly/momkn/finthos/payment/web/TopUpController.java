@@ -5,7 +5,7 @@ import com.alahly.momkn.finthos.payment.web.dto.TopUpRequest;
 import com.alahly.momkn.finthos.payment.web.dto.TxResult;
 import com.alahly.momkn.finthos.transaction.domain.Transaction;
 import com.alahly.momkn.finthos.user.domain.User;
-import com.alahly.momkn.finthos.user.repository.UserRepository;
+import com.alahly.momkn.finthos.user.service.UserService;
 import com.alahly.momkn.finthos.wallet.domain.Wallet;
 import com.alahly.momkn.finthos.wallet.service.WalletService;
 import jakarta.validation.Valid;
@@ -28,7 +28,7 @@ import java.util.UUID;
 public class TopUpController {
 
     private final PaymentService paymentService;
-    private final UserRepository userRepository;
+    private final UserService userService;
     private final WalletService walletService;
 
     @PostMapping("/topup")
@@ -37,8 +37,7 @@ public class TopUpController {
             @Valid @RequestBody TopUpRequest request,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
 
-        User user = userRepository.findByEmail(userDetails.getUsername())
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        User user = userService.getByEmail(userDetails.getUsername());
 
         String key = (idempotencyKey != null && !idempotencyKey.isBlank())
                 ? idempotencyKey
