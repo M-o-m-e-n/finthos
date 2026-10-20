@@ -1,6 +1,6 @@
-package com.alahly.momkn.finthos.transaction.repository;
+package com.alahly.momkn.finthos.wallet.repository;
 
-import com.alahly.momkn.finthos.transaction.domain.LedgerEntry;
+import com.alahly.momkn.finthos.wallet.domain.LedgerEntry;
 import org.springframework.data.repository.CrudRepository;
 
 import java.util.UUID;
