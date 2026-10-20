@@ -70,6 +70,15 @@ The app starts on `http://localhost:8080`. Flyway runs migrations automatically 
 ```
 
 Integration tests run against a real PostgreSQL 16 started by Testcontainers, so **Docker must be running**.
+
+### Run API tests (Postman / Newman)
+
+```bash
+cd postman && npm ci && npm test
+```
+
+Starts a mock payment processor and the app, then runs the Postman collection end-to-end with
+Newman (JUnit report in `postman/reports/`). See [postman/README.md](postman/README.md).
 The payment processor is mocked.
 
 ### Reset the local database
