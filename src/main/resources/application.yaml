@@ -19,8 +19,10 @@ spring:
 
 finthos:
   jwt:
-    secret: "dev-only-secret-key-change-me-in-production-0123456789abcdef"
+    secret: ${FINTHOS_JWT_SECRET:dev-only-secret-key-change-me-in-production-0123456789abcdef}
     expiration-ms: 3600000
+  cors:
+    allowed-origins: ${FINTHOS_CORS_ALLOWED_ORIGINS:http://localhost:[*]}
 
 logging:
   level:
