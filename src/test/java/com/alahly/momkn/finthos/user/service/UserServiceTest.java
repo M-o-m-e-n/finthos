@@ -1,14 +1,14 @@
 package com.alahly.momkn.finthos.user.service;
 
 import com.alahly.momkn.finthos.common.error.EmailAlreadyExistsException;
+import com.alahly.momkn.finthos.user.UserRegistered;
 import com.alahly.momkn.finthos.user.domain.Role;
 import com.alahly.momkn.finthos.user.domain.User;
 import com.alahly.momkn.finthos.user.mapper.UserMapper;
 import com.alahly.momkn.finthos.user.repository.UserRepository;
 import com.alahly.momkn.finthos.user.web.dto.RegisterRequest;
 import com.alahly.momkn.finthos.user.web.dto.UserResponse;
-import com.alahly.momkn.finthos.wallet.domain.Wallet;
-import com.alahly.momkn.finthos.wallet.service.WalletService;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -37,7 +37,7 @@ class UserServiceTest {
     @Mock
     private UserMapper userMapper;
     @Mock
-    private WalletService walletService;
+    private ApplicationEventPublisher events;
 
     @InjectMocks
     private com.alahly.momkn.finthos.user.service.UserService userService;
@@ -48,8 +48,6 @@ class UserServiceTest {
         when(userRepository.existsByEmail("user@example.com")).thenReturn(false);
         when(passwordEncoder.encode("password123")).thenReturn("HASH");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(walletService.createForUser(any(UUID.class), eq("USD")))
-                .thenReturn(Wallet.create(UUID.randomUUID(), "USD"));
         when(userMapper.toResponse(any(User.class)))
                 .thenReturn(new UserResponse(UUID.randomUUID(), "user1", "user@example.com", Role.USER, true, Instant.now()));
 
@@ -60,7 +58,7 @@ class UserServiceTest {
         assertThat(result.getRole()).isEqualTo(Role.USER);
         verify(passwordEncoder).encode("password123");
         verify(userRepository).save(any(User.class));
-        verify(walletService).createForUser(any(UUID.class), eq("USD"));
+        verify(events).publishEvent(any(UserRegistered.class));
     }
 
     @Test
