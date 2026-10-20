@@ -20,8 +20,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.UUID;
-
 @RestController
 @RequestMapping("/api/payments")
 @RequiredArgsConstructor
@@ -35,16 +33,12 @@ public class PaymentController {
     public ResponseEntity<TxResult> payMerchant(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody PaymentRequest request,
-            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+            @RequestHeader("Idempotency-Key") String idempotencyKey) {
 
         User user = userService.getByEmail(userDetails.getUsername());
 
-        String key = (idempotencyKey != null && !idempotencyKey.isBlank())
-                ? idempotencyKey
-                : UUID.randomUUID().toString();
-
         Transaction tx = paymentService.payMerchant(
-                user.getId(), request.getMerchantId(), request.getAmount(), key);
+                user.getId(), request.getMerchantId(), request.getAmount(), idempotencyKey);
 
         Wallet wallet = walletService.getByUserId(user.getId());
 

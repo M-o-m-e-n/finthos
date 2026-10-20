@@ -131,6 +131,7 @@ class TopUpApiTest {
     void topUp_unauthenticated_returns403() throws Exception {
         TopUpRequest req = new TopUpRequest(new BigDecimal("50.00"));
         mockMvc.perform(post("/api/wallets/topup")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isForbidden());
@@ -152,6 +153,16 @@ class TopUpApiTest {
         List<String> statuses = jdbcTemplate.queryForList(
                 "SELECT status FROM transactions WHERE target_wallet_id = ?", String.class, walletId);
         assertThat(statuses).containsExactly("FAILED");
+    }
+
+    @Test
+    void topUp_missingIdempotencyKey_returns400() throws Exception {
+        mockMvc.perform(post("/api/wallets/topup")
+                        .header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TopUpRequest(new BigDecimal("50.00")))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("MISSING_HEADER"));
     }
 
     @Test

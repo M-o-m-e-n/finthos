@@ -20,8 +20,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.UUID;
-
 @RestController
 @RequestMapping("/api/wallets")
 @RequiredArgsConstructor
@@ -35,15 +33,11 @@ public class TopUpController {
     public ResponseEntity<TxResult> topUp(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody TopUpRequest request,
-            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+            @RequestHeader("Idempotency-Key") String idempotencyKey) {
 
         User user = userService.getByEmail(userDetails.getUsername());
 
-        String key = (idempotencyKey != null && !idempotencyKey.isBlank())
-                ? idempotencyKey
-                : UUID.randomUUID().toString();
-
-        Transaction tx = paymentService.topUp(user.getId(), request.getAmount(), key);
+        Transaction tx = paymentService.topUp(user.getId(), request.getAmount(), idempotencyKey);
 
         Wallet wallet = walletService.getByUserId(user.getId());
 
