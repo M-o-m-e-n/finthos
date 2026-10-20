@@ -13,7 +13,7 @@ failures.
 
 ## Run it
 
-Prerequisites: JDK 17+, Node.js 18+, Docker running, nothing else listening on port 8080.
+Prerequisites: JDK 17+, Node.js 18+ and Docker running.
 
 ```bash
 cd postman
@@ -28,6 +28,10 @@ npm test
 3. runs **00 Setup** (registers fresh users), promotes the merchant and admin users in
    the database, then runs the other folders in order;
 4. stops the app and the mock, and exits non-zero if any check failed.
+
+If you already have the app running on 8080 (e.g. against SoapUI), start a separate instance
+for the tests on another port: `node run-api-tests.js --port 18080`. Note that the runner builds
+with `mvnw clean`, which rebuilds the `target/` folder your IDE run uses.
 
 Reports go to `postman/reports/`: `junit.xml` (for CI), `results.json`, and `app.log`.
 
@@ -64,7 +68,8 @@ Environment overrides: `FINTHOS_DB_URL` (default `postgres://finthos:finthos@loc
 2. Start the mock processor and the app as in "Against an app you already started".
 3. Run the **00 Setup** folder.
 4. The API cannot create admins or merchants, so promote them in the database
-   (the ids are in the environment, e.g. via Adminer at http://localhost:8888):
+   (the ids are in the environment, e.g. via Adminer at http://localhost:8888). Without this,
+   admin requests return 403 and payments to the merchant return 400:
    ```sql
    UPDATE users SET role = 'MERCHANT' WHERE id = '<merchantId>';
    UPDATE users SET role = 'ADMIN'    WHERE id = '<adminId>';
@@ -74,10 +79,15 @@ Environment overrides: `FINTHOS_DB_URL` (default `postgres://finthos:finthos@loc
 
 ## Notes
 
-- Balances are asserted exactly (e.g. 100 → 70 → 50 → 80 after the reversal), so folders
-  depend on each other and must run in order.
+- Balance checks are relative: each money-moving request first reads the current balances
+  (`payerBalanceBefore`, ...) and the "... balance ..." request after it asserts the change
+  (e.g. -30 after the transfer, unchanged after a decline). So you can re-run requests or whole
+  folders, but run a balance check right after the request it follows. "More than the balance"
+  requests compute `{{tooMuch}}` from the current balance; history checks look for this run's
+  transactions rather than exact counts.
 - **08 Processor failures** must stay last: failures count towards the circuit breaker
   (opens at ≥50% failures over the last 10 calls, minimum 5), after which processor-backed
-  requests return 503 for 10 s.
+  requests return 503 for 10 s. Declines currently count as failures too, so re-running the
+  top-up/payment folders against the same app can open it - restart the app (or wait 10 s).
 - Unauthenticated requests currently return 403 (Spring Security's default), while
   `docs/openapi.yaml` documents 401; those checks accept either.
