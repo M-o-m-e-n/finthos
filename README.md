@@ -20,7 +20,8 @@ Users can hold balances, top up from external sources, transfer peer-to-peer, pa
 | Validation | Jakarta Bean Validation |
 | Build | Maven |
 | Containerization | Docker Compose |
-| Testing | JUnit 5, Mockito, MockWebServer |
+| Testing | JUnit 5, Mockito, MockWebServer, Testcontainers (PostgreSQL) |
+| Module boundaries | Spring Modulith |
 
 ## Project Structure
 
@@ -36,6 +37,9 @@ com.alahly.momkn.finthos
 ```
 
 Each module follows the layered pattern: **web → service → domain → repository**.
+Each top-level package is a Spring Modulith module: other modules may only use its `service`
+and `domain` packages (plus `common`, a shared kernel). `ModularityTest` enforces this and
+writes module diagrams to `target/spring-modulith-docs`.
 
 ## Quick Start
 
@@ -65,7 +69,17 @@ The app starts on `http://localhost:8080`. Flyway runs migrations automatically 
 ./mvnw clean verify
 ```
 
-Tests use an H2 in-memory database (PostgreSQL mode) with a mocked processor — no external dependencies needed.
+Integration tests run against a real PostgreSQL 16 started by Testcontainers, so **Docker must be running**.
+The payment processor is mocked.
+
+### Reset the local database
+
+The schema is a single `V1__baseline.sql` while there is no production database. After changing it:
+
+```bash
+docker compose down -v   # deletes the local DB volume
+docker compose up -d     # Flyway recreates the schema on next app start
+```
 
 ## API Reference
 
@@ -100,7 +114,13 @@ All endpoints are under `/api`. Authentication uses `Authorization: Bearer <toke
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | `GET` | `/api/admin/users` | ADMIN | Paginated user list |
-| `POST` | `/api/admin/transactions/{id}/reverse` | ADMIN | Reverse a completed transaction |
+| `PATCH` | `/api/admin/users/{id}/disable` | ADMIN | Toggle a user's enabled flag |
+| `DELETE` | `/api/admin/users/{id}` | ADMIN | Delete a user with no transaction history |
+| `POST` | `/api/admin/transactions/{id}/reverse` | ADMIN | Reverse a completed transaction (once) |
+
+`Idempotency-Key` is scoped per user. Replaying a successful request returns the original
+result; reusing a key for a different request returns 422, and replaying while the first
+request is in progress or after it failed returns 409. Full contract: `docs/openapi.yaml`.
 
 ### Error Response Format
 
@@ -116,25 +136,32 @@ All endpoints are under `/api`. Authentication uses `Authorization: Bearer <toke
 
 | Status | Error Code | When |
 |--------|------------|------|
-| 400 | `VALIDATION_ERROR` | Invalid request body |
+| 400 | `VALIDATION_ERROR` / `MISSING_HEADER` / `BAD_REQUEST` | Invalid body, missing `Idempotency-Key`, self-transfer, non-merchant recipient |
 | 401 | `UNAUTHORIZED` | Bad credentials / missing token |
 | 402 | `PROCESSOR_DECLINED` | Payment processor declined |
+| 403 | `FORBIDDEN` | Not allowed (non-admin, someone else's transaction) |
 | 404 | `NOT_FOUND` | Resource doesn't exist |
 | 409 | `EMAIL_ALREADY_EXISTS` / `USERNAME_ALREADY_EXISTS` | Duplicate registration |
+| 409 | `IDEMPOTENCY_REQUEST_IN_PROGRESS` / `IDEMPOTENCY_PREVIOUS_ATTEMPT_FAILED` | Key replayed too early, or after a failure |
+| 409 | `INVALID_STATE` | Not reversible / already reversed; user with history can't be deleted |
+| 409 | `CONCURRENT_MODIFICATION` | Wallet changed concurrently (optimistic lock) |
 | 422 | `INSUFFICIENT_FUNDS` | Not enough balance |
-| 500 | `INTERNAL_ERROR` | Unexpected error |
+| 422 | `IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST` | Same key, different request |
+| 500 | `INTERNAL_ERROR` | Unexpected error (no internal details exposed) |
+| 503 | `PROCESSOR_UNAVAILABLE` | Processor circuit breaker open |
 | 504 | `PROCESSOR_TIMEOUT` | Processor didn't respond |
 
 ## Database Schema
 
-Six tables managed by Flyway:
+Five tables, created by `V1__baseline.sql` (Flyway). Diagram: `docs/ERD.mermaid`.
 
 - **users** — id, username, email, password_hash, role (USER/MERCHANT/ADMIN), enabled
 - **wallets** — id, user_id, balance (NUMERIC 19,4), currency, version (optimistic lock)
-- **transactions** — id, type, amount, status, idempotency_key, source/target wallet IDs
+- **transactions** — id, type, amount, status, idempotency_key (per user), source/target wallet IDs, reversal links
 - **ledger_entries** — id, wallet_id, transaction_id, delta, balance_after (immutable audit)
 - **processor_authorizations** — processor call attempts with status, timing, auth code
-- **auth_audit_log** — login attempts with outcome, IP, correlation ID
+
+Money history is never deleted: only `wallets → users` cascades.
 
 ## Configuration
 
@@ -149,13 +176,16 @@ spring:
 
 finthos:
   jwt:
-    secret: "your-secret-key"
+    secret: ${FINTHOS_JWT_SECRET:dev-only-...}   # override via env var
     expiration-ms: 3600000
+  cors:
+    allowed-origins: ${FINTHOS_CORS_ALLOWED_ORIGINS:http://localhost:[*]}
 
 processor:
   base-url: http://localhost:8072
   timeout-ms: 2000
-  retry-count: 1
+  retry-count: 3
+  retry-delay-ms: 500
 
 logging:
   level:
@@ -168,5 +198,7 @@ logging:
 - **Double-entry ledger** — every balance change produces an immutable `ledger_entries` row in the same transaction
 - **Optimistic locking** — `Wallet.version` prevents lost updates on concurrent operations
 - **Idempotency** — money-moving endpoints require an `Idempotency-Key` header enforced at the DB level
-- **Processor-first** — wallets are never credited before the processor returns APPROVED
+- **Processor-first** — wallets are never credited before the processor returns APPROVED; no DB transaction is held during the processor call, and a failed attempt is committed as FAILED
+- **Resilience** — bounded retry + circuit breaker around the processor
+- **Enforced module boundaries** — Spring Modulith verifies on every build that modules use only each other's `service`/`domain` APIs
 - **Correlation IDs** — every request gets a UUID for tracing across logs and error responses
