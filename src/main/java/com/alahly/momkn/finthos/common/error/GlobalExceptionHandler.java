@@ -1,12 +1,18 @@
 package com.alahly.momkn.finthos.common.error;
 
-import com.alahly.momkn.finthos.common.config.CorrelationIdFilter;
 import com.alahly.momkn.finthos.wallet.domain.InsufficientFundsException;
+import com.alahly.momkn.finthos.common.config.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.relational.core.conversion.DbActionExecutionException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -14,6 +20,8 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(ProcessorDeclinedException.class)
     public ResponseEntity<ApiError> handleProcessorDeclined(ProcessorDeclinedException ex,
@@ -71,6 +79,56 @@ public class GlobalExceptionHandler {
                         ex.getMessage(), correlationId(request)));
     }
 
+    @ExceptionHandler(IdempotencyConflictException.class)
+    public ResponseEntity<ApiError> handleIdempotencyConflict(IdempotencyConflictException ex,
+                                                              HttpServletRequest request) {
+        HttpStatus status = ex.getReason() == IdempotencyConflictException.Reason.KEY_REUSED_WITH_DIFFERENT_REQUEST
+                ? HttpStatus.UNPROCESSABLE_ENTITY
+                : HttpStatus.CONFLICT;
+        return error(status, "IDEMPOTENCY_" + ex.getReason().name(), ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(InvalidTransactionStateException.class)
+    public ResponseEntity<ApiError> handleInvalidState(InvalidTransactionStateException ex,
+                                                       HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, "INVALID_STATE", ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ApiError> handleOptimisticLock(OptimisticLockingFailureException ex,
+                                                         HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, "CONCURRENT_MODIFICATION",
+                "The wallet was modified concurrently; please retry", request);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiError> handleDataIntegrity(DataIntegrityViolationException ex,
+                                                        HttpServletRequest request) {
+        log.warn("Data integrity violation", ex);
+        return error(HttpStatus.CONFLICT, "CONFLICT",
+                "The request conflicts with the current state of the resource", request);
+    }
+
+    /** Spring Data JDBC wraps persistence failures; dispatch on the real cause. */
+    @ExceptionHandler(DbActionExecutionException.class)
+    public ResponseEntity<ApiError> handleDbAction(DbActionExecutionException ex,
+                                                   HttpServletRequest request) {
+        if (ex.getCause() instanceof OptimisticLockingFailureException cause) {
+            return handleOptimisticLock(cause, request);
+        }
+        if (ex.getCause() instanceof DataIntegrityViolationException cause) {
+            return handleDataIntegrity(cause, request);
+        }
+        return handleUnexpected(ex, request);
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ApiError> handleMissingHeader(MissingRequestHeaderException ex,
+                                                        HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, "MISSING_HEADER",
+                "Required header '" + ex.getHeaderName() + "' is missing", request);
+    }
+
     @ExceptionHandler(EntityNotFoundException.class)
     public ResponseEntity<ApiError> handleEntityNotFound(EntityNotFoundException ex,
                                                          HttpServletRequest request) {
@@ -110,9 +168,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleUnexpected(Exception ex,
                                                      HttpServletRequest request) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ApiError(HttpStatus.INTERNAL_SERVER_ERROR.value(), "INTERNAL_ERROR",
-                        ex.getMessage(), correlationId(request)));
+        log.error("Unhandled exception", ex);
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR",
+                "An unexpected error occurred", request);
+    }
+
+    private ResponseEntity<ApiError> error(HttpStatus status, String code, String message,
+                                           HttpServletRequest request) {
+        return ResponseEntity.status(status)
+                .body(new ApiError(status.value(), code, message, correlationId(request)));
     }
 
     private String correlationId(HttpServletRequest request) {
