@@ -16,11 +16,11 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import com.alahly.momkn.finthos.common.error.ProcessorDeclinedException;
+import com.alahly.momkn.finthos.common.error.ProcessorTimeoutException;
 import com.alahly.momkn.finthos.integration.client.ProcessorClient;
 import com.alahly.momkn.finthos.integration.client.ProcessorRequest;
 import com.alahly.momkn.finthos.integration.client.ProcessorResponse;
-import com.alahly.momkn.finthos.common.error.ProcessorTimeoutException;
-import com.alahly.momkn.finthos.common.error.ProcessorDeclinedException;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -148,5 +148,36 @@ class PaymentApiTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void pay_declined_persistsFailedTransaction() throws Exception {
+        when(processorClient.authorizeWithCircuitBreaker(any(UUID.class), any(ProcessorRequest.class)))
+                .thenThrow(new ProcessorDeclinedException("ref"));
+
+        mockMvc.perform(post("/api/payments")
+                        .header("Authorization", "Bearer " + userToken)
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new PaymentRequest(merchantId, new BigDecimal("30.00")))))
+                .andExpect(status().isPaymentRequired());
+
+        UUID payerWalletId = walletRepository.findByUserId(userId).orElseThrow().getId();
+        String status = jdbcTemplate.queryForObject(
+                "SELECT status FROM transactions WHERE source_wallet_id = ?", String.class, payerWalletId);
+        assertThat(status).isEqualTo("FAILED");
+    }
+
+    @Test
+    void pay_insufficientFunds_returns422WithoutCallingProcessor() throws Exception {
+        mockMvc.perform(post("/api/payments")
+                        .header("Authorization", "Bearer " + userToken)
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new PaymentRequest(merchantId, new BigDecimal("500.00")))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error").value("INSUFFICIENT_FUNDS"));
+
+        org.mockito.Mockito.verifyNoInteractions(processorClient);
     }
 }

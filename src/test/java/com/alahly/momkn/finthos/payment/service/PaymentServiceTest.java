@@ -8,14 +8,15 @@ import com.alahly.momkn.finthos.transaction.domain.Transaction;
 import com.alahly.momkn.finthos.transaction.domain.TxType;
 import com.alahly.momkn.finthos.transaction.service.IdempotencyService;
 import com.alahly.momkn.finthos.transaction.service.TransactionService;
+import com.alahly.momkn.finthos.wallet.domain.InsufficientFundsException;
 import com.alahly.momkn.finthos.wallet.domain.Wallet;
 import com.alahly.momkn.finthos.wallet.service.WalletService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionOperations;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -41,7 +42,6 @@ class PaymentServiceTest {
     @Mock
     private IdempotencyService idempotencyService;
 
-    @InjectMocks
     private PaymentService paymentService;
 
     private UUID userId;
@@ -52,6 +52,9 @@ class PaymentServiceTest {
 
     @BeforeEach
     void setUp() {
+        paymentService = new PaymentService(transactionService, processorClient, walletService,
+                idempotencyService, TransactionOperations.withoutTransaction());
+
         userId = UUID.randomUUID();
         merchantId = UUID.randomUUID();
         userWallet = Wallet.create(userId, "USD");
@@ -112,6 +115,23 @@ class PaymentServiceTest {
     }
 
     @Test
+    void topUp_settlementFailsAfterApproval_marksFailed() {
+        when(idempotencyService.findExisting("idem-1")).thenReturn(Optional.empty());
+        when(walletService.getByUserId(userId)).thenReturn(userWallet);
+        when(transactionService.create(eq(TxType.TOP_UP), eq(new BigDecimal("50.00")),
+                eq("idem-1"), eq(null), eq(userWallet.getId())))
+                .thenReturn(pendingTx);
+        when(processorClient.authorizeWithCircuitBreaker(eq(pendingTx.getId()), any(ProcessorRequest.class)))
+                .thenReturn(new ProcessorResponse(pendingTx.getId().toString(), "APPROVED", "AUTH-123"));
+        when(walletService.credit(any(), any(), any())).thenThrow(new IllegalStateException("db down"));
+
+        assertThrows(IllegalStateException.class,
+                () -> paymentService.topUp(userId, new BigDecimal("50.00"), "idem-1"));
+
+        verify(transactionService).markFailed(pendingTx);
+    }
+
+    @Test
     void topUp_existingIdempotencyKey_returnsCachedResult() {
         Transaction existing = Transaction.create(TxType.TOP_UP, new BigDecimal("50.00"),
                 "idem-1", null, userWallet.getId());
@@ -141,6 +161,19 @@ class PaymentServiceTest {
         verify(walletService).debit(eq(userWallet.getId()), eq(new BigDecimal("30.00")), eq(pendingTx.getId()));
         verify(walletService).credit(eq(merchantWallet.getId()), eq(new BigDecimal("30.00")), eq(pendingTx.getId()));
         verify(transactionService).markSuccess(pendingTx);
+    }
+
+    @Test
+    void payMerchant_insufficientFunds_failsBeforeCallingProcessor() {
+        when(idempotencyService.findExisting("idem-2")).thenReturn(Optional.empty());
+        when(walletService.getByUserId(userId)).thenReturn(userWallet);
+        when(walletService.getByUserId(merchantId)).thenReturn(merchantWallet);
+
+        assertThrows(InsufficientFundsException.class,
+                () -> paymentService.payMerchant(userId, merchantId, new BigDecimal("500.00"), "idem-2"));
+
+        verify(processorClient, never()).authorizeWithCircuitBreaker(any(), any());
+        verify(transactionService, never()).create(any(), any(), any(), any(), any());
     }
 
     @Test
