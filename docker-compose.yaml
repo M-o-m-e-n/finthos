@@ -1,5 +1,28 @@
-# PostgreSQL + Adminer, defined in compose.db.yaml (which local runs use on their own).
+# Everything: `docker compose up --build` starts PostgreSQL, Adminer and the app.
+#
+#   APP_PORT            host port for the app (default 8080)
+#   PROCESSOR_BASE_URL  payment processor (default: SoapUI mock on the host, port 8072)
+#   FINTHOS_JWT_SECRET  overrides the dev JWT secret
 name: finthos
 
 include:
   - compose.db.yaml
+
+services:
+  app:
+    build: .
+    image: finthos-app
+    container_name: finthos-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      FINTHOS_DATASOURCE_URL: jdbc:postgresql://db:5432/finthos
+      PROCESSOR_BASE_URL: ${PROCESSOR_BASE_URL:-http://host.docker.internal:8072}
+      FINTHOS_JWT_SECRET: ${FINTHOS_JWT_SECRET:-dev-only-secret-key-change-me-in-production-0123456789abcdef}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # lets the container reach SoapUI on the host (Linux too)
+
