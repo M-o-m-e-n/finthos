@@ -1,6 +1,5 @@
 package com.alahly.momkn.finthos.common.security;
 
-import com.alahly.momkn.finthos.user.domain.Role;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -25,11 +24,11 @@ public class JwtService {
         return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    public String generateToken(String email, Role role) {
+    public String generateToken(String email, String role) {
         Date now = new Date();
         return Jwts.builder()
                 .subject(email)
-                .claim("role", role.name())
+                .claim("role", role)
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + expirationMs))
                 .signWith(key())
