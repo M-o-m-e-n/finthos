@@ -4,21 +4,22 @@
 | Field | Value |
 |---|---|
 | Document | High-Level Design |
-| Version | 1.0 |
-| Stack | Java 17+ / Spring Boot 3.x, PostgreSQL |
-| Architecture | Modular-Layered Monolith (microservice-ready) |
+| Version | 1.1 |
+| Stack | Java 17 / Spring Boot 3.4, Spring Data JDBC, PostgreSQL 16 |
+| Architecture | Modular monolith (Spring Modulith), microservice-ready |
 | Related | See SRS.md and LLD.md |
 
 ---
 
 ## 1. Architectural Goals
 
-The system is a **modular-layered monolith**: one deployable unit, but internally divided into self-contained feature modules, each with its own layers. This is deliberately chosen so the team learns clean boundaries now and can extract modules into **microservices** later without rewriting business logic.
+The system is a **modular monolith**: one deployable unit, internally divided into self-contained feature modules, each with its own layers. This is deliberately chosen so the team learns clean boundaries now and can extract modules into **microservices** later without rewriting business logic.
 
 Design principles:
 - **Layering** — every module follows Controller → Service → Repository → Domain.
-- **Modularity** — modules talk to each other only through service interfaces, never by reaching into another module's repository or tables.
-- **Dependency direction** — dependencies point inward (web depends on service, service depends on domain). Domain depends on nothing.
+- **Modularity** — modules talk to each other only through each other's `service` API (and published events), never by reaching into another module's repository, tables or web DTOs. This is **enforced by a test** (`ModularityTest`, Spring Modulith), not just by review.
+- **Dependency direction** — dependencies point inward (web depends on service, service depends on domain). Domain classes carry only persistence-mapping annotations and protect their own invariants.
+- **No dependency cycles between modules** — where a direct call would create one, the dependent module reacts to an event instead.
 - **Externalized integration** — anything outside the system (the mock processor) is reached through one adapter, isolating the rest of the code from external changes.
 
 ---
@@ -37,11 +38,11 @@ graph TD
         IDEMP[Idempotency Handling]
     end
     subgraph Domain Layer
-        E1[Entities: User, Wallet, Transaction, LedgerEntry]
-        R1[Domain Rules / Validation]
+        E1[Entities: User, Wallet, LedgerEntry, Transaction]
+        R1[Domain Rules / Invariants]
     end
     subgraph Infrastructure Layer
-        REPO[JPA Repositories]
+        REPO[Spring Data JDBC Repositories]
         PROC[ProcessorClient adapter]
         DB[(PostgreSQL)]
         SEC[Security / JWT]
@@ -65,8 +66,8 @@ graph TD
 | Layer | Responsibility | Must NOT do |
 |---|---|---|
 | Presentation | HTTP, request validation, map DTO ⇄ domain | Contain business rules |
-| Service/Application | Business logic, orchestration, transactions | Handle HTTP or SQL details |
-| Domain | Entities, invariants (e.g. balance ≥ 0) | Know about Spring/web |
+| Service/Application | Business logic, orchestration, transaction boundaries | Handle HTTP or SQL details |
+| Domain | Entities, invariants (e.g. balance ≥ 0); state changes only via domain methods | Depend on Spring beans/web; expose setters for invariant state |
 | Infrastructure | Persistence, external HTTP, security | Contain business decisions |
 
 ---
@@ -76,29 +77,39 @@ graph TD
 ```mermaid
 graph LR
     subgraph Monolith Deployable
-        UM[User Module]
-        WM[Wallet Module]
-        TM[Transaction Module]
-        PM[Payment Module]
-        IM[Integration Module]
+        UM[user]
+        WM[wallet]
+        TM[transaction]
+        PM[payment]
+        IM[integration]
+        AM[admin]
+        CM[common - shared kernel]
     end
-    UM -->|user info| WM
-    WM -->|balance ops| TM
+    UM -.->|UserRegistered event| WM
+    TM -->|debit/credit| WM
     PM -->|debit/credit| WM
+    PM -->|create/mark tx, idempotency| TM
+    PM -->|merchant check| UM
     PM -->|authorize| IM
-    TM -->|authorize top-up| IM
+    AM -->|users| UM
+    AM -->|reverse| TM
+    AM -->|debit/credit| WM
     IM -->|HTTP| MOCK[(Mock Processor)]
 ```
 
+Every module may also use `common`. Arrows point from the depending module to the module it calls; the dashed arrow is an event (wallet listens to user), so `user` itself depends only on `common`.
+
 | Module | Owns | Future Microservice |
 |---|---|---|
-| **User** | Registration, login, JWT, roles | `user-service` |
-| **Wallet** | Balances, ledger, atomic debit/credit | `wallet-service` |
-| **Transaction** | Transfers, history, transaction lifecycle | `transaction-service` |
-| **Payment** | Merchant payments, top-up orchestration | `payment-service` |
-| **Integration** | ProcessorClient adapter, retries, timeouts | `integration-service` / gateway |
+| **user** | Registration, login, roles, profile; publishes `UserRegistered` | `user-service` |
+| **wallet** | Balances, ledger, atomic debit/credit; creates a wallet per registered user | `wallet-service` |
+| **transaction** | Transaction records, P2P transfers, history, idempotency | `transaction-service` |
+| **payment** | Top-up and merchant-payment orchestration | `payment-service` |
+| **integration** | ProcessorClient adapter, retry, timeout, circuit breaker | `integration-service` / gateway |
+| **admin** | User administration, transaction reversal | part of a back-office service |
+| **common** | Error model, security (JWT, `AuthenticatedUser`), correlation ids, logging | shared library |
 
-Each module is a Java package (`com.company.wallet.<module>`) with sub-packages `web`, `service`, `domain`, `repository`. Cross-module calls go through a published `*Service` interface only — this is the seam along which microservices will later be split.
+Each module is a top-level package (`com.alahly.momkn.finthos.<module>`) with sub-packages `web`, `service`, `domain`, `repository`. Only `service`, `domain` and the module's base package (events) are visible to other modules; `common` is an open shared kernel that depends on no module. The allowed dependencies are declared per module (`package-info.java`) and verified on every build — this is the seam along which microservices will later be split.
 
 ---
 
@@ -114,27 +125,29 @@ sequenceDiagram
     participant WAL as WalletService
     participant DB as Database
 
-    U->>API: POST /wallets/topup { amount, Idempotency-Key }
+    U->>API: POST /wallets/topup { amount } + Idempotency-Key
     API->>SVC: topUp(userId, amount, key)
-    SVC->>DB: check idempotency key
-    alt already processed
-        DB-->>SVC: existing result
-        SVC-->>API: return cached result
+    SVC->>DB: look up (userId, key)
+    alt already succeeded
+        DB-->>SVC: existing transaction
+        SVC-->>API: return original result
     else new request
-        SVC->>DB: create Transaction(PENDING)
+        SVC->>DB: commit Transaction(PENDING)
+        Note over SVC,MOCK: no DB transaction held during the processor call
         SVC->>PROC: authorize(txId, amount)
-        PROC->>MOCK: POST /authorize
+        PROC->>MOCK: POST /authorize (timeout, retry, circuit breaker)
         MOCK-->>PROC: APPROVED / DECLINED / TIMEOUT
         alt APPROVED
             PROC-->>SVC: APPROVED
+            Note over SVC,DB: one DB transaction
             SVC->>WAL: credit(walletId, amount)
             WAL->>DB: update balance + ledger entry
             SVC->>DB: Transaction -> SUCCESS
             SVC-->>API: 200 success
-        else DECLINED or TIMEOUT
+        else DECLINED / TIMEOUT / circuit open
             PROC-->>SVC: failure
-            SVC->>DB: Transaction -> FAILED (no balance change)
-            SVC-->>API: 402 / 504 error
+            SVC->>DB: commit Transaction -> FAILED (no balance change)
+            SVC-->>API: 402 / 504 / 503 error
         end
     end
     API-->>U: response
@@ -166,7 +179,7 @@ graph TD
     TS --> TSD[(tx db)]
 ```
 
-The migration path: extract one module at a time, replace in-process service calls with REST/messaging, and give each service its own database. Because modules already avoid shared tables, this is incremental.
+The migration path: extract one module at a time, replace in-process service calls with REST/messaging (in-process events such as `UserRegistered` become messages), and give each service its own database. Because modules already avoid shared tables and their boundaries are test-enforced, this is incremental.
 
 ---
 
@@ -174,13 +187,14 @@ The migration path: extract one module at a time, replace in-process service cal
 
 | Concern | Approach |
 |---|---|
-| Security | Spring Security + JWT filter; role-based access for admin endpoints |
-| Transactions | `@Transactional` at service layer; balance updates + ledger in one unit of work |
-| Idempotency | `Idempotency-Key` stored with transaction; unique constraint prevents duplicates |
-| Resilience | Timeout + bounded retry on ProcessorClient; failure ⇒ transaction FAILED, never inconsistent |
-| Error handling | Central `@RestControllerAdvice` mapping domain exceptions to HTTP codes |
-| Logging | Correlation ID via filter/MDC; structured logs at module boundaries |
-| Config | `application.yml` per profile; processor URL/timeout externalized |
+| Security | Spring Security + JWT filter; the principal is an `AuthenticatedUser` (id, email, role), so modules never look the caller up again. Disabled users are rejected even with a valid token. Role-based access for `/api/admin/**`. |
+| Transactions | Balance update + ledger entry always in one DB transaction (`LedgerService` requires an existing one). Processor-backed flows commit PENDING first, call the processor with no transaction open, then settle in one transaction; failures commit FAILED separately. |
+| Idempotency | `Idempotency-Key` header required on money-moving endpoints and scoped per user. The DB unique constraint is the real enforcement; `IdempotencyService` is the fast path, rejects reuse with a different request, and resolves concurrent duplicates. |
+| Resilience | Timeout + bounded retry + circuit breaker on ProcessorClient; failure ⇒ transaction FAILED, balance never touched. |
+| Concurrency | Optimistic locking (`wallets.version`); a conflict returns 409 and the whole unit rolls back. |
+| Error handling | Central `@RestControllerAdvice` mapping exceptions to HTTP codes; 5xx responses never expose internal details. |
+| Logging | Correlation ID via filter/MDC (returned as `X-Correlation-Id` and in error bodies); structured logs at module boundaries. |
+| Config | `application.yaml` with env-var overrides (DB, JWT secret, CORS origins); processor URL/timeout/retry externalized. |
 
 ---
 
@@ -188,14 +202,16 @@ The migration path: extract one module at a time, replace in-process service cal
 
 | Area | Choice | Why |
 |---|---|---|
-| Language | Java 17+ | Records, modern APIs |
-| Framework | Spring Boot 3.x | Standard for FinTech backends |
-| Data | Spring Data JPA + PostgreSQL | Relational integrity for money |
-| Migrations | Flyway | Versioned schema |
-| HTTP client | Spring `RestClient`/`WebClient` | Calls to mock processor |
-| Auth | Spring Security + JWT | Simple, standard |
-| Testing | JUnit 5, Mockito, Testcontainers | Unit + integration |
-| Build | Maven or Gradle | Team preference |
+| Language | Java 17 | Records, modern APIs |
+| Framework | Spring Boot 3.4 | Standard for FinTech backends |
+| Data | Spring Data JDBC + PostgreSQL 16 | Explicit, aggregate-oriented persistence; relational integrity for money |
+| Migrations | Flyway | Versioned schema (single baseline until a shared DB exists) |
+| Modularity | Spring Modulith | Verifies module boundaries and cycles on every build; module docs |
+| HTTP client | Spring `RestClient` | Calls to mock processor |
+| Resilience | Spring Retry (`RetryTemplate`) + Resilience4j circuit breaker | Bounded retry and fail-fast when the processor is down |
+| Auth | Spring Security + JWT (jjwt) | Simple, standard |
+| Testing | JUnit 5, Mockito, MockWebServer, Testcontainers (PostgreSQL) | Unit + integration against the real database engine |
+| Build | Maven (wrapper) | Team preference |
 
 ---
 
@@ -203,7 +219,11 @@ The migration path: extract one module at a time, replace in-process service cal
 
 | Risk | Mitigation |
 |---|---|
-| Interns bypass module boundaries | Code review checklist; package-private repositories |
-| Inconsistent balances on processor timeout | Never credit before APPROVED; transactional design |
+| Interns bypass module boundaries | `ModularityTest` fails the build on any cross-module access to internals or any cycle |
+| Inconsistent balances on processor timeout | Never credit before APPROVED; FAILED committed independently of the money transaction |
+| Processor approves but settlement fails (e.g. balance spent concurrently) | Transaction marked FAILED and logged at ERROR for reconciliation; automatic processor void is out of scope |
+| Double charge on client retry | Required, per-user `Idempotency-Key` + unique constraint |
+| Loss of audit trail | No cascading deletes into money history; users with history can only be disabled |
+| Tests passing on a DB that behaves differently | Integration tests run on PostgreSQL via Testcontainers |
 | Scope creep | Freeze scope to High-priority FRs in SRS |
 | Hardcoded processor URL | Enforce externalized config (NFR) |
