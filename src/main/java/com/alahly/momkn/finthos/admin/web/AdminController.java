@@ -3,8 +3,8 @@ package com.alahly.momkn.finthos.admin.web;
 import com.alahly.momkn.finthos.admin.service.AdminService;
 import com.alahly.momkn.finthos.admin.web.dto.AdminUserPage;
 import com.alahly.momkn.finthos.admin.web.dto.AdminUserResponse;
+import com.alahly.momkn.finthos.admin.web.dto.ReversalResponse;
 import com.alahly.momkn.finthos.transaction.domain.Transaction;
-import com.alahly.momkn.finthos.transaction.web.dto.TxResponse;
 import com.alahly.momkn.finthos.user.domain.User;
 import com.alahly.momkn.finthos.user.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -38,7 +38,7 @@ public class AdminController {
     }
 
     @PostMapping("/transactions/{id}/reverse")
-    public ResponseEntity<TxResponse> reverseTransaction(
+    public ResponseEntity<ReversalResponse> reverseTransaction(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserDetails userDetails) {
 
@@ -46,7 +46,7 @@ public class AdminController {
 
         Transaction reversal = adminService.reverseTransaction(id, admin.getId());
 
-        TxResponse response = TxResponse.builder()
+        ReversalResponse response = ReversalResponse.builder()
                 .id(reversal.getId())
                 .type(reversal.getType().name())
                 .amount(reversal.getAmount())
