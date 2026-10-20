@@ -55,11 +55,15 @@ public class Wallet implements Persistable<UUID> {
     }
 
     public void debit(BigDecimal amount) {
+        ensureCanDebit(amount);
+        this.balance = this.balance.subtract(amount);
+        this.updatedAt = Instant.now();
+    }
+
+    public void ensureCanDebit(BigDecimal amount) {
         if (this.balance.subtract(amount).compareTo(BigDecimal.ZERO) < 0) {
             throw new InsufficientFundsException(this.balance, amount);
         }
-        this.balance = this.balance.subtract(amount);
-        this.updatedAt = Instant.now();
     }
 
     public static Wallet create(UUID userId, String currency) {

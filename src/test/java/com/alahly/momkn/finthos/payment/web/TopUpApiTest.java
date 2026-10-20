@@ -1,5 +1,7 @@
 package com.alahly.momkn.finthos.payment.web;
 
+import java.util.List;
+import org.springframework.jdbc.core.JdbcTemplate;
 import com.alahly.momkn.finthos.payment.web.dto.TopUpRequest;
 import com.alahly.momkn.finthos.user.web.dto.RegisterRequest;
 import com.alahly.momkn.finthos.wallet.domain.Wallet;
@@ -15,11 +17,11 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import com.alahly.momkn.finthos.common.error.ProcessorDeclinedException;
+import com.alahly.momkn.finthos.common.error.ProcessorTimeoutException;
 import com.alahly.momkn.finthos.integration.client.ProcessorClient;
 import com.alahly.momkn.finthos.integration.client.ProcessorRequest;
 import com.alahly.momkn.finthos.integration.client.ProcessorResponse;
-import com.alahly.momkn.finthos.common.error.ProcessorTimeoutException;
-import com.alahly.momkn.finthos.common.error.ProcessorDeclinedException;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -43,6 +45,9 @@ class TopUpApiTest {
 
     @Autowired
     private WalletRepository walletRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @MockitoBean
     private ProcessorClient processorClient;
@@ -129,5 +134,23 @@ class TopUpApiTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void topUp_declined_persistsFailedTransaction() throws Exception {
+        when(processorClient.authorizeWithCircuitBreaker(any(UUID.class), any(ProcessorRequest.class)))
+                .thenThrow(new ProcessorDeclinedException("ref"));
+
+        mockMvc.perform(post("/api/wallets/topup")
+                        .header("Authorization", "Bearer " + userToken)
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TopUpRequest(new BigDecimal("50.00")))))
+                .andExpect(status().isPaymentRequired());
+
+        UUID walletId = walletRepository.findByUserId(userId).orElseThrow().getId();
+        List<String> statuses = jdbcTemplate.queryForList(
+                "SELECT status FROM transactions WHERE target_wallet_id = ?", String.class, walletId);
+        assertThat(statuses).containsExactly("FAILED");
     }
 }
