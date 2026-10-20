@@ -1,14 +1,13 @@
 package com.alahly.momkn.finthos.admin.service;
 
 import com.alahly.momkn.finthos.admin.web.dto.AdminUserPage;
+import com.alahly.momkn.finthos.common.error.InvalidTransactionStateException;
 import com.alahly.momkn.finthos.transaction.domain.Transaction;
-import com.alahly.momkn.finthos.transaction.domain.TxStatus;
 import com.alahly.momkn.finthos.transaction.domain.TxType;
 import com.alahly.momkn.finthos.transaction.service.TransactionService;
 import com.alahly.momkn.finthos.user.domain.Role;
 import com.alahly.momkn.finthos.user.domain.User;
 import com.alahly.momkn.finthos.user.service.UserService;
-import com.alahly.momkn.finthos.wallet.domain.Wallet;
 import com.alahly.momkn.finthos.wallet.service.WalletService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,6 +26,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -71,12 +71,25 @@ class AdminServiceTest {
         tx.markFailed();
         when(transactionService.findById(txId)).thenReturn(tx);
 
-        assertThrows(IllegalStateException.class,
+        assertThrows(InvalidTransactionStateException.class,
                 () -> adminService.reverseTransaction(txId, adminId));
     }
 
     @Test
-    void reverseTransaction_success_createsReversal() {
+    void reverseTransaction_alreadyReversed_throws() {
+        UUID txId = UUID.randomUUID();
+        Transaction tx = Transaction.create(TxType.TRANSFER, new BigDecimal("10.00"), "k",
+                UUID.randomUUID(), UUID.randomUUID());
+        tx.markReversed();
+        when(transactionService.findById(txId)).thenReturn(tx);
+
+        assertThrows(InvalidTransactionStateException.class,
+                () -> adminService.reverseTransaction(txId, adminId));
+        verify(transactionService, never()).createReversal(any(), any());
+    }
+
+    @Test
+    void reverseTransaction_success_movesFundsBackAndMarksOriginalReversed() {
         UUID txId = UUID.randomUUID();
         UUID sourceWalletId = UUID.randomUUID();
         UUID targetWalletId = UUID.randomUUID();
@@ -87,15 +100,19 @@ class AdminServiceTest {
         original.markSuccess();
         when(transactionService.findById(txId)).thenReturn(original);
 
-        Transaction reversal = Transaction.create(TxType.REVERSAL, new BigDecimal("50.00"),
-                "REVERSAL-" + txId, targetWalletId, sourceWalletId);
+        Transaction reversal = Transaction.reversalOf(original, adminId);
         reversal.markPersisted();
-        when(transactionService.create(any(TxType.class), any(BigDecimal.class), any(String.class),
-                any(UUID.class), any(UUID.class))).thenReturn(reversal);
+        when(transactionService.createReversal(original, adminId)).thenReturn(reversal);
 
         Transaction result = adminService.reverseTransaction(txId, adminId);
 
         assertThat(result.getType()).isEqualTo(TxType.REVERSAL);
+        assertThat(result.getReversedTransactionId()).isEqualTo(original.getId());
+        assertThat(result.getReversedByAdminId()).isEqualTo(adminId);
+        verify(walletService).debit(targetWalletId, new BigDecimal("50.00"), reversal.getId());
+        verify(walletService).credit(sourceWalletId, new BigDecimal("50.00"), reversal.getId());
         verify(transactionService).markSuccess(reversal);
+        verify(transactionService).markReversed(original);
+        verify(transactionService, never()).markSuccess(original);
     }
 }

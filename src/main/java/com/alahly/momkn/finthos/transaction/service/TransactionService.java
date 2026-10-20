@@ -24,10 +24,11 @@ public class TransactionService {
 
     public Transaction create(TxType type, BigDecimal amount, String idempotencyKey,
                                UUID sourceWalletId, UUID targetWalletId) {
-        Transaction tx = Transaction.create(type, amount, idempotencyKey, sourceWalletId, targetWalletId);
-        Transaction saved = transactionRepository.save(tx);
-        saved.markPersisted();
-        return saved;
+        return insert(Transaction.create(type, amount, idempotencyKey, sourceWalletId, targetWalletId));
+    }
+
+    public Transaction createReversal(Transaction original, UUID adminId) {
+        return insert(Transaction.reversalOf(original, adminId));
     }
 
     public void markSuccess(Transaction tx) {
@@ -37,6 +38,12 @@ public class TransactionService {
 
     public void markFailed(Transaction tx) {
         tx.markFailed();
+        transactionRepository.save(tx);
+    }
+
+    public void markReversed(Transaction tx) {
+        tx.markPersisted();
+        tx.markReversed();
         transactionRepository.save(tx);
     }
 
@@ -55,11 +62,6 @@ public class TransactionService {
         return tx;
     }
 
-    public void markPersisted(Transaction tx) {
-        tx.markPersisted();
-        transactionRepository.save(tx);
-    }
-
     public Page<Transaction> listTransactions(UUID walletId, TxType type, Instant fromDate, Instant toDate,
                                                Pageable pageable) {
         String typeStr = (type != null) ? type.name() : null;
@@ -68,5 +70,11 @@ public class TransactionService {
                 pageable.getPageSize(), (int) pageable.getOffset());
         long total = transactionRepository.countByWalletAndFilters(walletId, typeStr, fromDate, toDate);
         return new PageImpl<>(content, pageable, total);
+    }
+
+    private Transaction insert(Transaction tx) {
+        Transaction saved = transactionRepository.save(tx);
+        saved.markPersisted();
+        return saved;
     }
 }

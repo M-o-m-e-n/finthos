@@ -43,6 +43,12 @@ public class Transaction implements Persistable<UUID> {
     @Column("target_wallet_id")
     private UUID targetWalletId;
 
+    @Column("reversed_transaction_id")
+    private UUID reversedTransactionId;
+
+    @Column("reversed_by_admin_id")
+    private UUID reversedByAdminId;
+
     @Column("created_at")
     private Instant createdAt;
 
@@ -67,6 +73,15 @@ public class Transaction implements Persistable<UUID> {
         this.updatedAt = Instant.now();
     }
 
+    public void markReversed() {
+        this.status = TxStatus.REVERSED;
+        this.updatedAt = Instant.now();
+    }
+
+    public boolean isReversible() {
+        return status == TxStatus.SUCCESS && type != TxType.REVERSAL;
+    }
+
     public void markPersisted() {
         this.newEntity = false;
     }
@@ -86,5 +101,14 @@ public class Transaction implements Persistable<UUID> {
                 .updatedAt(now)
                 .newEntity(true)
                 .build();
+    }
+
+    /** Compensating transaction: moves the original amount back from target to source. */
+    public static Transaction reversalOf(Transaction original, UUID adminId) {
+        Transaction reversal = create(TxType.REVERSAL, original.getAmount(), "REVERSAL-" + original.getId(),
+                original.getTargetWalletId(), original.getSourceWalletId());
+        reversal.reversedTransactionId = original.getId();
+        reversal.reversedByAdminId = adminId;
+        return reversal;
     }
 }
