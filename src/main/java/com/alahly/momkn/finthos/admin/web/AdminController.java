@@ -4,13 +4,11 @@ import com.alahly.momkn.finthos.admin.service.AdminService;
 import com.alahly.momkn.finthos.admin.web.dto.AdminUserPage;
 import com.alahly.momkn.finthos.admin.web.dto.AdminUserResponse;
 import com.alahly.momkn.finthos.admin.web.dto.ReversalResponse;
+import com.alahly.momkn.finthos.common.security.AuthenticatedUser;
 import com.alahly.momkn.finthos.transaction.domain.Transaction;
-import com.alahly.momkn.finthos.user.domain.User;
-import com.alahly.momkn.finthos.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -28,7 +26,6 @@ import java.util.UUID;
 public class AdminController {
 
     private final AdminService adminService;
-    private final UserService userService;
 
     @GetMapping("/users")
     public ResponseEntity<AdminUserPage> listUsers(
@@ -40,11 +37,9 @@ public class AdminController {
     @PostMapping("/transactions/{id}/reverse")
     public ResponseEntity<ReversalResponse> reverseTransaction(
             @PathVariable UUID id,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal AuthenticatedUser me) {
 
-        User admin = userService.getByEmail(userDetails.getUsername());
-
-        Transaction reversal = adminService.reverseTransaction(id, admin.getId());
+        Transaction reversal = adminService.reverseTransaction(id, me.id());
 
         ReversalResponse response = ReversalResponse.builder()
                 .id(reversal.getId())

@@ -1,11 +1,10 @@
 package com.alahly.momkn.finthos.payment.web;
 
+import com.alahly.momkn.finthos.common.security.AuthenticatedUser;
 import com.alahly.momkn.finthos.payment.service.PaymentService;
 import com.alahly.momkn.finthos.payment.web.dto.PaymentRequest;
 import com.alahly.momkn.finthos.payment.web.dto.TxResult;
 import com.alahly.momkn.finthos.transaction.domain.Transaction;
-import com.alahly.momkn.finthos.user.domain.User;
-import com.alahly.momkn.finthos.user.service.UserService;
 import com.alahly.momkn.finthos.wallet.domain.Wallet;
 import com.alahly.momkn.finthos.wallet.service.WalletService;
 import jakarta.validation.Valid;
@@ -13,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -26,21 +24,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class PaymentController {
 
     private final PaymentService paymentService;
-    private final UserService userService;
     private final WalletService walletService;
 
     @PostMapping
     public ResponseEntity<TxResult> payMerchant(
-            @AuthenticationPrincipal UserDetails userDetails,
+            @AuthenticationPrincipal AuthenticatedUser me,
             @Valid @RequestBody PaymentRequest request,
             @RequestHeader("Idempotency-Key") String idempotencyKey) {
 
-        User user = userService.getByEmail(userDetails.getUsername());
-
         Transaction tx = paymentService.payMerchant(
-                user.getId(), request.getMerchantId(), request.getAmount(), idempotencyKey);
+                me.id(), request.getMerchantId(), request.getAmount(), idempotencyKey);
 
-        Wallet wallet = walletService.getByUserId(user.getId());
+        Wallet wallet = walletService.getByUserId(me.id());
 
         TxResult result = TxResult.builder()
                 .transactionId(tx.getId())

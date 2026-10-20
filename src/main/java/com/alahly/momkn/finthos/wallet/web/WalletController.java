@@ -1,14 +1,12 @@
 package com.alahly.momkn.finthos.wallet.web;
 
-import com.alahly.momkn.finthos.user.domain.User;
-import com.alahly.momkn.finthos.user.service.UserService;
+import com.alahly.momkn.finthos.common.security.AuthenticatedUser;
 import com.alahly.momkn.finthos.wallet.mapper.WalletMapper;
 import com.alahly.momkn.finthos.wallet.service.WalletService;
 import com.alahly.momkn.finthos.wallet.web.dto.WalletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -19,14 +17,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class WalletController {
 
     private final WalletService walletService;
-    private final UserService userService;
     private final WalletMapper walletMapper;
 
     @GetMapping("/me")
-    public ResponseEntity<WalletResponse> getMyWallet(Authentication authentication) {
-        UserDetails principal = (UserDetails) authentication.getPrincipal();
-        User user = userService.getByEmail(principal.getUsername());
-        var wallet = walletService.getByUserId(user.getId());
+    public ResponseEntity<WalletResponse> getMyWallet(@AuthenticationPrincipal AuthenticatedUser me) {
+        var wallet = walletService.getByUserId(me.id());
         return ResponseEntity.ok(walletMapper.toResponse(wallet));
     }
 }
