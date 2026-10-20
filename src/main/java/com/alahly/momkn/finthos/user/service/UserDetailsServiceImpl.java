@@ -1,5 +1,6 @@
 package com.alahly.momkn.finthos.user.service;
 
+import com.alahly.momkn.finthos.common.security.AuthenticatedUser;
 import com.alahly.momkn.finthos.user.domain.User;
 import com.alahly.momkn.finthos.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,10 +20,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
 
-        return org.springframework.security.core.userdetails.User.withUsername(user.getEmail())
-                .password(user.getPasswordHash())
-                .authorities("ROLE_" + user.getRole().name())
-                .disabled(!user.isEnabled())
-                .build();
+        return new AuthenticatedUser(user.getId(), user.getEmail(), user.getPasswordHash(),
+                user.getRole().name(), user.isEnabled());
     }
 }

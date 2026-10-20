@@ -1,5 +1,6 @@
 package com.alahly.momkn.finthos.transaction.web;
 
+import com.alahly.momkn.finthos.common.security.AuthenticatedUser;
 import com.alahly.momkn.finthos.transaction.domain.Transaction;
 import com.alahly.momkn.finthos.transaction.domain.TxType;
 import com.alahly.momkn.finthos.transaction.service.TransactionService;
@@ -8,9 +9,6 @@ import com.alahly.momkn.finthos.transaction.web.dto.TransactionItem;
 import com.alahly.momkn.finthos.transaction.web.dto.TransactionPage;
 import com.alahly.momkn.finthos.transaction.web.dto.TransferRequest;
 import com.alahly.momkn.finthos.transaction.web.dto.TxResponse;
-import com.alahly.momkn.finthos.user.domain.User;
-import com.alahly.momkn.finthos.user.domain.Role;
-import com.alahly.momkn.finthos.user.service.UserService;
 import com.alahly.momkn.finthos.wallet.domain.Wallet;
 import com.alahly.momkn.finthos.wallet.service.WalletService;
 import jakarta.validation.Valid;
@@ -20,7 +18,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -36,19 +33,16 @@ public class TransactionController {
 
     private final TransferService transferService;
     private final TransactionService transactionService;
-    private final UserService userService;
     private final WalletService walletService;
 
     @PostMapping("/transfers")
     public ResponseEntity<TxResponse> transfer(
-            @AuthenticationPrincipal UserDetails userDetails,
+            @AuthenticationPrincipal AuthenticatedUser me,
             @Valid @RequestBody TransferRequest request,
             @RequestHeader("Idempotency-Key") String idempotencyKey) {
 
-        User sender = userService.getByEmail(userDetails.getUsername());
-
         Transaction tx = transferService.transfer(
-                sender.getId(),
+                me.id(),
                 request.getToUserId(),
                 request.getAmount(),
                 idempotencyKey);
@@ -68,16 +62,14 @@ public class TransactionController {
 
     @GetMapping("/transactions")
     public ResponseEntity<TransactionPage> listTransactions(
-            @AuthenticationPrincipal UserDetails userDetails,
+            @AuthenticationPrincipal AuthenticatedUser me,
             @RequestParam(required = false) TxType type,
             @RequestParam(required = false) LocalDate from,
             @RequestParam(required = false) LocalDate to,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
-        User user = userService.getByEmail(userDetails.getUsername());
-
-        Wallet wallet = walletService.getByUserId(user.getId());
+        Wallet wallet = walletService.getByUserId(me.id());
 
         Instant fromDate = (from != null) ? from.atStartOfDay(ZoneOffset.UTC).toInstant() : null;
         Instant toDate = (to != null) ? to.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().minusNanos(1) : null;
@@ -112,14 +104,12 @@ public class TransactionController {
 
     @GetMapping("/transactions/{id}")
     public ResponseEntity<TransactionItem> getTransaction(
-            @AuthenticationPrincipal UserDetails userDetails,
+            @AuthenticationPrincipal AuthenticatedUser me,
             @PathVariable UUID id) {
 
-        User user = userService.getByEmail(userDetails.getUsername());
+        Wallet wallet = walletService.getByUserId(me.id());
 
-        Wallet wallet = walletService.getByUserId(user.getId());
-
-        Transaction tx = transactionService.getVisibleTo(id, wallet.getId(), user.getRole() == Role.ADMIN);
+        Transaction tx = transactionService.getVisibleTo(id, wallet.getId(), me.isAdmin());
 
         TransactionItem response = TransactionItem.builder()
                 .id(tx.getId())
