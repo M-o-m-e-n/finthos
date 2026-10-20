@@ -79,6 +79,7 @@ class PaymentApiTest {
                 .andReturn();
         String merchantBody = merchantResult.getResponse().getContentAsString();
         merchantId = UUID.fromString(objectMapper.readTree(merchantBody).get("user").get("id").asText());
+        jdbcTemplate.update("UPDATE users SET role = 'MERCHANT' WHERE id = ?", merchantId);
 
         Wallet payerWallet = walletRepository.findByUserId(userId).orElseThrow();
         jdbcTemplate.update("UPDATE wallets SET balance = balance + 100.00 WHERE id = ?", payerWallet.getId());
@@ -166,6 +167,21 @@ class PaymentApiTest {
         String status = jdbcTemplate.queryForObject(
                 "SELECT status FROM transactions WHERE source_wallet_id = ?", String.class, payerWalletId);
         assertThat(status).isEqualTo("FAILED");
+    }
+
+    @Test
+    void pay_toNonMerchant_returns400() throws Exception {
+        jdbcTemplate.update("UPDATE users SET role = 'USER' WHERE id = ?", merchantId);
+
+        mockMvc.perform(post("/api/payments")
+                        .header("Authorization", "Bearer " + userToken)
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new PaymentRequest(merchantId, new BigDecimal("30.00")))))
+                .andExpect(status().isBadRequest());
+
+        assertThat(walletRepository.findByUserId(userId).orElseThrow().getBalance())
+                .isEqualByComparingTo(new BigDecimal("100.00"));
     }
 
     @Test
