@@ -1,9 +1,9 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:finthos;MODE=PostgreSQL;DATABASE_TO_UPPER=false;CASE_INSENSITIVE_IDENTIFIERS=TRUE;DB_CLOSE_DELAY=-1
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
+    # Real PostgreSQL via Testcontainers (Docker required). TC_DAEMON keeps one container
+    # alive for the whole test JVM, shared by every Spring test context.
+    url: jdbc:tc:postgresql:16:///finthos?TC_DAEMON=true
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
   flyway:
     locations: classpath:db/migration
 
