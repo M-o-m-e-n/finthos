@@ -38,7 +38,7 @@ class AuthServiceTest {
         User user = User.create("user1", "user@example.com", "HASH", Role.USER);
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password123", "HASH")).thenReturn(true);
-        when(jwtService.generateToken("user@example.com", Role.USER)).thenReturn("JWT-TOKEN");
+        when(jwtService.generateToken("user@example.com", "USER")).thenReturn("JWT-TOKEN");
 
         AuthResponse response = authService.login(new LoginRequest("user@example.com", "password123"));
 

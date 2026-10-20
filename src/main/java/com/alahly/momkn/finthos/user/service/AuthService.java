@@ -30,10 +30,10 @@ public class AuthService {
             throw new AuthenticationFailedException("Account is disabled");
         }
 
-        return new AuthResponse(jwtService.generateToken(user.getEmail(), user.getRole()));
+        return new AuthResponse(jwtService.generateToken(user.getEmail(), user.getRole().name()));
     }
 
     public String generateToken(String email, Role role) {
-        return jwtService.generateToken(email, role);
+        return jwtService.generateToken(email, role.name());
     }
 }
