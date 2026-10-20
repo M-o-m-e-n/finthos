@@ -71,7 +71,7 @@ class WalletServiceTest {
         UUID txId = UUID.randomUUID();
         when(walletRepository.findById(wallet.getId())).thenReturn(Optional.of(wallet));
 
-        assertThrows(com.alahly.momkn.finthos.wallet.domain.InsufficientFundsException.class,
+        assertThrows(com.alahly.momkn.finthos.common.error.InsufficientFundsException.class,
                 () -> walletService.debit(wallet.getId(), new BigDecimal("200.00"), txId));
 
         verify(walletRepository, org.mockito.Mockito.never()).save(any());

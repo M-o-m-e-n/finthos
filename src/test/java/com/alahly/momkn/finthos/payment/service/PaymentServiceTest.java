@@ -1,6 +1,6 @@
 package com.alahly.momkn.finthos.payment.service;
 
-import com.alahly.momkn.finthos.wallet.domain.InsufficientFundsException;
+import com.alahly.momkn.finthos.common.error.InsufficientFundsException;
 import com.alahly.momkn.finthos.common.error.ProcessorDeclinedException;
 import com.alahly.momkn.finthos.common.error.ProcessorTimeoutException;
 import com.alahly.momkn.finthos.integration.client.ProcessorClient;

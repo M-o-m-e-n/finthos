@@ -1,6 +1,6 @@
 package com.alahly.momkn.finthos.transaction.service;
 
-import com.alahly.momkn.finthos.wallet.domain.InsufficientFundsException;
+import com.alahly.momkn.finthos.common.error.InsufficientFundsException;
 import com.alahly.momkn.finthos.transaction.domain.Transaction;
 import com.alahly.momkn.finthos.transaction.domain.TxType;
 import com.alahly.momkn.finthos.transaction.repository.TransactionRepository;

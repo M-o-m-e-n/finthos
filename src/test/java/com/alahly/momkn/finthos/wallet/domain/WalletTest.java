@@ -1,5 +1,6 @@
 package com.alahly.momkn.finthos.wallet.domain;
 
+import com.alahly.momkn.finthos.common.error.InsufficientFundsException;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;

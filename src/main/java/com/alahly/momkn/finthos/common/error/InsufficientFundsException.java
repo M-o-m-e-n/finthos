@@ -1,4 +1,4 @@
-package com.alahly.momkn.finthos.wallet.domain;
+package com.alahly.momkn.finthos.common.error;
 
 import java.math.BigDecimal;
 
