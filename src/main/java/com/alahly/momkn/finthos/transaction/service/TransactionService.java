@@ -1,5 +1,6 @@
 package com.alahly.momkn.finthos.transaction.service;
 
+import com.alahly.momkn.finthos.common.error.EntityNotFoundException;
 import com.alahly.momkn.finthos.transaction.domain.Transaction;
 import com.alahly.momkn.finthos.transaction.domain.TxType;
 import com.alahly.momkn.finthos.transaction.repository.TransactionRepository;
@@ -41,7 +42,7 @@ public class TransactionService {
 
     public Transaction findById(UUID txId) {
         return transactionRepository.findById(txId)
-                .orElseThrow(() -> new IllegalArgumentException("Transaction not found: " + txId));
+                .orElseThrow(() -> new EntityNotFoundException("Transaction not found: " + txId));
     }
 
     /** Returns the transaction if the wallet is a party to it (or the caller is an admin). */
